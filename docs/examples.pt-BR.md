@@ -1,6 +1,6 @@
 # Exemplos aplicados
 
-[English](examples.md) · [简体中文](examples.zh-CN.md) · [日本語](examples.ja.md) · [Español](examples.es.md) · Português
+[English](examples.md) · [简体中文](examples.zh-CN.md) · [日本語](examples.ja.md) · [Español](examples.es.md) · Português · [Tiếng Việt](examples.vi.md)
 
 Execuções reais em apps de código aberto, sem nada plantado. Cada número vem das [execuções](runs/), onde estão todos os relatórios, aparelho por aparelho.
 

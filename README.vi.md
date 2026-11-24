@@ -7,7 +7,7 @@
 
 **20 tester AI trên 20 chiếc điện thoại khác nhau, chạy song song, trên các runner miễn phí của GitHub.**
 
-**[Ví dụ](docs/examples.md)** · **[So sánh](docs/compare.md)** · **[FAQ](docs/faq.md)** · **[Personas](personas.json)** · **[Đóng góp](CONTRIBUTING.md)** · **[Bản phát hành](https://github.com/pierridotite/mobile-agent-testers/releases)**
+**[Ví dụ](docs/examples.vi.md)** · **[So sánh](docs/compare.md)** · **[FAQ](docs/faq.vi.md)** · **[Personas](personas.json)** · **[Đóng góp](CONTRIBUTING.md)** · **[Bản phát hành](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · Tiếng Việt
 
@@ -56,7 +56,7 @@ Các lần chạy thật trên các ứng dụng mã nguồn mở, không gài s
 | [AnkiDroid](https://github.com/ankidroid/Anki-Android) (Kotlin, 12k stars, APK bản release) | 10 Android | 43 vấn đề khác nhau, trong đó có các nút trả lời bị cắt một nửa ở font 200% và "Get started" còn nguyên tiếng Anh trong ba ngôn ngữ | dưới 10 phút, $4.69 |
 | [Ứng dụng mẫu animations của Flutter](https://github.com/flutter/packages/tree/main/packages/animations/example) | 1 Android, 1 iOS | Cùng một lỗi chính tả, được cả hai agent tự báo cáo độc lập, và một ứng dụng phớt lờ chế độ tối | 19 phút, $0.47 |
 
-34 trong số 46 bug của LocalSend không liên quan gì đến cỡ chữ hay khả năng tiếp cận: các luồng bị hỏng, lỗi âm thầm, thiếu bản dịch, bố cục máy tính bảng. Ảnh chụp màn hình, mọi phát hiện và các lệnh để chạy lại chúng: [docs/examples.md](docs/examples.md).
+34 trong số 46 bug của LocalSend không liên quan gì đến cỡ chữ hay khả năng tiếp cận: các luồng bị hỏng, lỗi âm thầm, thiếu bản dịch, bố cục máy tính bảng. Ảnh chụp màn hình, mọi phát hiện và các lệnh để chạy lại chúng: [docs/examples.vi.md](docs/examples.vi.md).
 
 ## Bắt đầu nhanh
 
@@ -83,7 +83,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
   -f android_personas=anna,malik -f ios_personas=clara,jonas
 ```
 
-Mọi input (build, brief, báo cáo bug, model rẻ hơn, tham số build, video) và các framework được hỗ trợ: [docs/configuration.md](docs/configuration.md).
+Mọi input (build, brief, báo cáo bug, model rẻ hơn, tham số build, video) và các framework được hỗ trợ: [docs/configuration.vi.md](docs/configuration.vi.md).
 
 ## Đóng góp
 

@@ -1,6 +1,6 @@
 # よくある質問
 
-[English](faq.md) · [简体中文](faq.zh-CN.md) · 日本語 · [Español](faq.es.md) · [Português](faq.pt-BR.md)
+[English](faq.md) · [简体中文](faq.zh-CN.md) · 日本語 · [Español](faq.es.md) · [Português](faq.pt-BR.md) · [Tiếng Việt](faq.vi.md)
 
 ## 20 のエージェントが同じバグを 20 回見つけるだけでは？
 
