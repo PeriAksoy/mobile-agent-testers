@@ -9,7 +9,7 @@
 
 **[Examples](docs/examples.md)** · **[Compare](docs/compare.md)** · **[FAQ](docs/faq.md)** · **[Personas](personas.json)** · **[Contributing](CONTRIBUTING.md)** · **[Releases](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
-English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md)
+English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · [Tiếng Việt](README.vi.md)
 
 No test scripts to write. Each tester is a Claude Code agent with its own iOS
 Simulator or Android emulator on GitHub Actions. It plays a persona (iPhone SE
