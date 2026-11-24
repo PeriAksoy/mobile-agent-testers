@@ -61,6 +61,39 @@ class Matrix(unittest.TestCase):
         self.assertNotEqual(out.returncode, 0)
         self.assertIn(ios_one, out.stderr)
 
+    def test_accessibility_settings_default_to_off(self):
+        ids = {"android": [], "ios": []}
+        for p in PERSONAS:
+            if not p["device"].get("increase_contrast") and not p["device"].get("reduce_motion"):
+                ids[p["platform"]].append(p["id"])
+        for platform in ("android", "ios"):
+            for row in rows(platform, ids[platform][0]):
+                self.assertEqual(row["increase_contrast"], "false")
+                if platform == "ios":
+                    self.assertEqual(row["reduce_motion"], "false")
+
+    def test_accessibility_settings_reach_the_row(self):
+        for p in PERSONAS:
+            d = p["device"]
+            if not (d.get("increase_contrast") or d.get("reduce_motion")):
+                continue
+            with self.subTest(p["id"]):
+                row = rows(p["platform"], p["id"])[0]
+                self.assertEqual(row["increase_contrast"], "true" if d.get("increase_contrast") else "false")
+                if p["platform"] == "ios":
+                    self.assertEqual(row["reduce_motion"], "true" if d.get("reduce_motion") else "false")
+
+    def test_run_scripts_apply_the_accessibility_settings(self):
+        ios = (ROOT / "scripts/ios/run_agent.sh").read_text(encoding="utf-8")
+        android = (ROOT / "scripts/android/run_agent.sh").read_text(encoding="utf-8")
+        self.assertIn('simctl ui "$UDID" increase_contrast enabled', ios)
+        self.assertIn("com.apple.Accessibility ReduceMotionEnabled -bool true", ios)
+        self.assertIn("settings put secure high_text_contrast_enabled 1", android)
+        # Before the app starts, so it reads them at launch
+        self.assertLess(ios.index("increase_contrast"), ios.index("simctl launch"))
+        self.assertLess(ios.index("ReduceMotionEnabled"), ios.index("simctl launch"))
+        self.assertLess(android.index("high_text_contrast_enabled"), android.index("monkey -p"))
+
     def test_rows_have_every_key_the_jobs_read(self):
         for platform in ("android", "ios"):
             used = set(re.findall(r"matrix\.([a-z_]+)", job(platform)))
@@ -90,6 +123,12 @@ class Personas(unittest.TestCase):
         for p in PERSONAS:
             d = p["device"]
             with self.subTest(p["id"]):
+                for key in ("increase_contrast", "reduce_motion"):
+                    if key in d:
+                        self.assertIsInstance(d[key], bool, key)
+                if p["platform"] == "android":
+                    # Animations are off on every emulator already (disable-animations)
+                    self.assertNotIn("reduce_motion", d)
                 if p["platform"] == "ios":
                     self.assertIn(d["text_size"], IOS_TEXT_SIZES)
                     self.assertTrue(d["simulator"].startswith(("iPhone", "iPad")))

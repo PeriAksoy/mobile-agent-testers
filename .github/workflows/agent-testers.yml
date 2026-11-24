@@ -240,6 +240,7 @@ jobs:
           DEVICE: ${{ matrix.device }}
           FONT_SCALE: ${{ matrix.font_scale }}
           THEME: ${{ matrix.theme }}
+          INCREASE_CONTRAST: ${{ matrix.increase_contrast }}
           LOCALE: ${{ matrix.locale }}
           GEO: ${{ matrix.geo }}
           APP_ID: ${{ inputs.app_id }}
@@ -344,6 +345,8 @@ jobs:
           PERSONA: ${{ matrix.persona }}
           TEXT_SIZE: ${{ matrix.text_size }}
           THEME: ${{ matrix.theme }}
+          INCREASE_CONTRAST: ${{ matrix.increase_contrast }}
+          REDUCE_MOTION: ${{ matrix.reduce_motion }}
           LOCALE: ${{ matrix.locale }}
           GEO: ${{ matrix.geo }}
           APP_ID: ${{ inputs.app_id }}
