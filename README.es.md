@@ -30,6 +30,7 @@ o tu clave de API: entre 0,15 y 0,55 $ por teléfono en [estas ejecuciones](docs
 ![iOS + Android](https://img.shields.io/badge/platforms-iOS%20%2B%20Android-blue)
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-orange)
 [![Last commit](https://img.shields.io/github/last-commit/pierridotite/mobile-agent-testers)](https://github.com/pierridotite/mobile-agent-testers/commits/main)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/WuaCANscr8)
 
 ## Qué puede hacer
 

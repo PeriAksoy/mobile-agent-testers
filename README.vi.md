@@ -33,6 +33,7 @@ Claude hoặc API key của bạn: khoảng $0.15 đến $0.55 mỗi điện tho
 ![iOS + Android](https://img.shields.io/badge/platforms-iOS%20%2B%20Android-blue)
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-orange)
 [![Last commit](https://img.shields.io/github/last-commit/pierridotite/mobile-agent-testers)](https://github.com/pierridotite/mobile-agent-testers/commits/main)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/WuaCANscr8)
 
 ## Nó làm được gì
 
