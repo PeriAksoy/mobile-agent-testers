@@ -9,6 +9,8 @@ Each Android tester now leaves two more files in its results, next to `report.md
 
 Nothing changes for the agent: same tools, same brief. The taps are noted by a pass-through in front of `adb` ([scripts/android/shim/adb](../scripts/android/shim/adb)), and [scripts/ecr_trace.py](../scripts/ecr_trace.py) writes the trace when the agent is done.
 
+To watch, comment and edit these paths before compiling them: [docs/dashboard.md](dashboard.md).
+
 ## From a trace to a test that reruns with no model
 
 The trace is in the format of [Explore-Compile-Replay](https://github.com/pierridotite/explore-compile-replay), which compiles it to a [Maestro](https://maestro.dev) flow:
