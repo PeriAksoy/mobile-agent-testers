@@ -18,14 +18,16 @@ TEXTS = {
            "password": "Password", "submit": "Create account", "terms": "By going on you accept the terms",
            "lists": "My lists", "empty": "No items yet", "add": "Add item", "tab_lists": "Lists",
            "tab_settings": "Settings", "new": "New item", "title": "Title", "save": "Save", "cancel": "Cancel",
-           "item": "Buy milk", "settings": "Settings", "size": "Text size", "dark": "Dark mode", "out": "Sign out"},
+           "item": "Buy milk", "settings": "Settings", "size": "Text size", "dark": "Dark mode", "out": "Sign out",
+           "help": "Help", "contact": "Contact us", "privacy": "Privacy policy", "faq": "Questions and answers"},
     "fr": {"welcome": "Bienvenue dans Todo", "pitch": "Des listes qui se souviennent pour vous", "start": "Commencer",
            "signin": "J'ai déjà un compte", "create": "Créez votre compte", "email": "E-mail",
            "password": "Mot de passe", "submit": "Créer le compte", "terms": "En continuant, vous acceptez les conditions",
            "lists": "Mes listes", "empty": "Aucun élément", "add": "Ajouter", "tab_lists": "Listes",
            "tab_settings": "Réglages", "new": "Nouvel élément", "title": "Titre", "save": "Enregistrer",
            "cancel": "Annuler", "item": "Acheter du lait", "settings": "Réglages", "size": "Taille du texte",
-           "dark": "Mode sombre", "out": "Se déconnecter"},
+           "dark": "Mode sombre", "out": "Se déconnecter",
+           "help": "Aide", "contact": "Nous écrire", "privacy": "Confidentialité", "faq": "Questions fréquentes"},
 }
 
 
@@ -56,7 +58,12 @@ def screens(t, keyboard=False):
         "settings": [("appbar", t["settings"], "app:id/title", (0, 80, 1080, 260)),
                      ("row", t["size"], "app:id/text_size", (0, 300, 1080, 460)),
                      ("row", t["dark"], "app:id/dark", (0, 460, 1080, 620)),
-                     ("row", t["out"], "app:id/sign_out", (0, 620, 1080, 780)), *bar],
+                     ("row", t["out"], "app:id/sign_out", (0, 620, 1080, 780)),
+                     ("row", t["help"], "app:id/help", (0, 780, 1080, 940)), *bar],
+        "help": [("appbar", t["help"], "app:id/title", (0, 80, 1080, 260)),
+                 ("row", t["faq"], "app:id/faq", (0, 300, 1080, 460)),
+                 ("row", t["contact"], "app:id/contact", (0, 460, 1080, 620)),
+                 ("row", t["privacy"], "app:id/privacy", (0, 620, 1080, 780))],
     }
 
 
@@ -169,10 +176,24 @@ TESTERS = [
 ]
 
 
+# The map maker of briefs/map.md: no persona, every screen once.
+MAPPER = ({"id": "map", "profile": "Map maker: opens every control once.", "goal": "Reach every screen of the app.",
+           "locale": "en-US", "device": {"name": "Small phone, Android 11", "font_scale": 1.0, "theme": "light"}}, "en", False, [
+    ("welcome", False, ("tap", 540, 2130)), ("welcome", False, ("tap", 540, 1970)),
+    ("signup", False, ("tap", 540, 490)), ("signup", True, ("type", "map@example.com")),
+    ("signup", True, ("tap", 540, 690)), ("signup", True, ("type", "map-pass-123")),
+    ("signup", True, ("key", "KEYCODE_BACK")), ("signup", False, ("tap", 540, 1070)),
+    ("home", False, ("tap", 940, 2060)), ("new", True, ("key", "KEYCODE_BACK")), ("new", False, ("tap", 290, 2300)),
+    ("home", False, ("tap", 810, 2300)), ("settings", False, ("tap", 540, 380)), ("settings", False, ("tap", 540, 860)),
+    ("help", False, ("tap", 540, 380)), ("help", False, ("key", "KEYCODE_BACK")),
+    ("settings", False, ("tap", 540, 700)),
+], [{"title": "'I already have an account' does nothing", "severity": "major", "screen": "Welcome", "screens": ["01"]}], None, "welcome")
+
+
 def write(root):
     """Writes the run under root, laid out like the output of scripts/collect.sh."""
     root = Path(root)
-    for persona, lang, dark, path, issues, score, last in TESTERS:
+    for persona, lang, dark, path, issues, score, last in TESTERS + [MAPPER]:
         folder = root / f"android-{persona['id']}" / "results" / persona["id"]
         folder.mkdir(parents=True, exist_ok=True)
         log, nn = [], 0
@@ -197,11 +218,12 @@ def write(root):
         shoot(last, False)
         trace, _, _ = ecr_trace.build(log, persona, APP, "2026-11-25T12:00:00Z")
         (folder / "trace.json").write_text(json.dumps(trace, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        (folder / "findings.json").write_text(json.dumps({"score": score, "issues": issues}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        findings = {"score": score, "issues": issues} if score is not None else {"mode": "map", "issues": issues}
+        (folder / "findings.json").write_text(json.dumps(findings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         report = [f"# {persona['id']}, {persona['device']['name']}", "", "Made-up run for the demo of the dashboard.", "",
                   "## Issues", ""]
         for i in issues:
             report += [f"### {i['title']}", f"- Severity: {i['severity']}", f"- Screenshots: {', '.join(i['screens'])}", ""]
-        report += ["## Opinion", "", f"Score: {score}/10"]
+        report += ["## Opinion", "", f"Score: {score}/10"] if score is not None else ["## Screens found", "", "Welcome, Sign-up, My lists, New item, Settings, Help."]
         (folder / "report.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     return root

@@ -1,19 +1,21 @@
-"""The paths of the testers, on your machine: watch them, comment them, edit them.
+"""The map of an app's screens, on your machine, with the paths of the testers on it.
 
-Usage: python3 scripts/dashboard.py <collected run dir> [--port 8765] [--ecr <explore-compile-replay clone>]
+Usage: python3 scripts/dashboard.py <collected run dir> [<another run dir> ...] [--port 8765] [--ecr <clone>]
        python3 scripts/dashboard.py --demo
        python3 scripts/dashboard.py --demo --export site/     # the online demo: static files, no server
 
-Opens a page on http://127.0.0.1:8765 that shows each tester's path step by step
-(the screenshot before each action, where the finger landed, a heat map of the taps),
-on a timeline you can edit: reorder, delete or add steps, change a target, add a check,
-comment a step. Run it on the folder that scripts/collect.sh wrote (runs/<run id>).
+Opens a page on http://127.0.0.1:8765 that draws every screen the testers saw as a map:
+one card per screen, arrows from one screen to the next as wide as the number of testers,
+a heat map of real or estimated taps on each screen. Comment a screen (trace.notes.json),
+or add a check to it: what must be visible or not, possibly a known bug (trace.json).
+Run it on the folders that scripts/collect.sh wrote (runs/<run id>), for instance a map
+maker run (briefs/map.md) with a persona run.
 
 Every path is a trace.json in the Explore-Compile-Replay format
-(https://github.com/pierridotite/explore-compile-replay). Saving writes the trace back,
-still valid, and keeps the explored one as trace.explored.json the first time.
-Comments go to trace.notes.json, next to it. With --ecr, the page can also check a
-trace and compile it to a Maestro flow with the real ECR command (Node 22.18+).
+(https://github.com/pierridotite/explore-compile-replay), which compiles it to a Maestro
+flow that replays with no model. The dashboard changes only the checks of a trace, never its
+steps, and keeps the explored trace as trace.explored.json the first time. With --ecr <clone>,
+a save is refused unless `ecr validate` accepts the trace (Node 22.18+).
 
 The results are private: the server listens on 127.0.0.1 only, and never serves
 trace.params.json (the texts the agent typed).
@@ -103,7 +105,7 @@ def title_of(elements):
 def group_screens(personas):
     """Gives each screenshot a group: screenshots of the same screen, by any tester, share it.
     A heat map adds up the taps of a group."""
-    groups = []   # [tokens of the first screenshot, titles seen, count]
+    groups = []   # [tokens of the first screenshot, titles seen, count, screenshots]
     for p in personas:
         for nn, screen in sorted(p["screens"].items()):
             toks = screen.pop("_tokens")
@@ -113,13 +115,15 @@ def group_screens(personas):
                 if s > score:
                     best, score = i, s
             if best is None or score < SAME_SCREEN:
-                groups.append([toks, Counter(), 0])
+                groups.append([toks, Counter(), 0, []])
                 best = len(groups) - 1
             groups[best][2] += 1
+            groups[best][3].append({"key": p["key"], "nn": nn})
             if screen["title"]:
                 groups[best][1][screen["title"]] += 1
             screen["group"] = f"g{best + 1}"
-    return {f"g{i + 1}": {"title": (g[1].most_common(1)[0][0] if g[1] else ""), "count": g[2]}
+    # members: every screenshot of the screen; the first one stands for it on the map
+    return {f"g{i + 1}": {"title": (g[1].most_common(1)[0][0] if g[1] else ""), "count": g[2], "members": g[3]}
             for i, g in enumerate(groups)}
 
 
@@ -130,35 +134,72 @@ def find_traces(root):
     return found
 
 
-def load_run(root):
-    root = Path(root)
+def as_roots(roots):
+    return [Path(r) for r in (roots if isinstance(roots, (list, tuple)) else [roots])]
+
+
+def key_of(roots, i, folder):
+    """A persona's key: its path in the run, prefixed by the run's number when several runs are open."""
+    rel = folder.relative_to(roots[i]).as_posix() if folder != roots[i] else "."
+    return rel if len(roots) == 1 else f"{i + 1}:{rel}"
+
+
+def locate(roots, key):
+    """The folder a key names, or None. It must sit inside one of the runs."""
+    roots = [r.resolve() for r in roots]
+    i, rel = 0, key or ""
+    if len(roots) > 1:
+        head, _, rel = rel.partition(":")
+        if not head.isdigit() or not 1 <= int(head) <= len(roots):
+            return None
+        i = int(head) - 1
+    root = roots[i]
+    folder = (root / rel).resolve() if rel and rel != "." else root
+    if folder != root and root not in folder.parents:
+        return None
+    return folder
+
+
+def load_run(roots):
+    roots = as_roots(roots)
     personas = []
-    for trace_path in find_traces(root):
-        folder = trace_path.parent
-        trace = read_json(trace_path)
-        if not isinstance(trace, dict):
-            continue
-        screens = {}
-        for f in sorted(folder.iterdir()):
-            m = SCREEN.match(f.name)
-            if not m:
-                continue
-            elements = screen_elements(folder / f"{m.group(1)}.xml")
-            screens[m.group(1)] = {"file": f.name, "elements": elements, "title": title_of(elements),
-                                   "_tokens": tokens(elements)}
-        notes = read_json(folder / "trace.notes.json") or {"schema": NOTES_SCHEMA, "steps": {}}
-        report = folder / "report.md"
-        personas.append({
-            "key": folder.relative_to(root).as_posix() if folder != root else ".",
-            "trace": trace,
-            "notes": notes,
-            "findings": read_json(folder / "findings.json"),
-            "report": report.read_text(encoding="utf-8", errors="replace") if report.exists() else "",
-            "screens": screens,
-            "edited": (folder / "trace.explored.json").exists(),
-        })
+    for i, root in enumerate(roots):
+        for trace_path in find_traces(root):
+            load_persona(personas, roots, i, trace_path)
     groups = group_screens(personas)
-    return {"run": root.resolve().name, "personas": personas, "groups": groups}
+    return {"run": " + ".join(r.resolve().name for r in roots), "personas": personas, "groups": groups}
+
+
+def load_persona(personas, roots, i, trace_path):
+    folder = trace_path.parent
+    trace = read_json(trace_path)
+    if not isinstance(trace, dict):
+        return
+    screens = {}
+    for f in sorted(folder.iterdir()):
+        m = SCREEN.match(f.name)
+        if not m:
+            continue
+        elements = screen_elements(folder / f"{m.group(1)}.xml")
+        screens[m.group(1)] = {"file": f.name, "elements": elements, "title": title_of(elements),
+                               "_tokens": tokens(elements)}
+        # Optional: where a saliency model predicts the eye goes, [[x, y, weight], ...] in 0..1.
+        # The map shows it instead of its own estimate.
+        saliency = read_json(folder / f"{m.group(1)}.saliency.json")
+        if isinstance(saliency, dict) and isinstance(saliency.get("points"), list):
+            screens[m.group(1)]["saliency"] = [pt for pt in saliency["points"]
+                                               if isinstance(pt, list) and len(pt) == 3 and all(isinstance(v, (int, float)) for v in pt)][:2000]
+    findings = read_json(folder / "findings.json")
+    notes = read_json(folder / "trace.notes.json") or {"schema": NOTES_SCHEMA, "screens": {}}
+    personas.append({
+        "key": key_of(roots, i, folder),
+        "trace": trace,
+        "notes": notes,
+        "findings": findings,
+        # the map maker of briefs/map.md explores every screen; it is not a persona
+        "mapper": isinstance(findings, dict) and findings.get("mode") == "map",
+        "screens": screens,
+    })
 
 
 # ---------- checking and writing ----------
@@ -181,6 +222,18 @@ def check_trace(trace):
     for s in steps:
         if not isinstance(s, dict) or not isinstance(s.get("action"), dict) or not s["action"].get("kind"):
             problems.append(f"step {s.get('id') if isinstance(s, dict) else '?'} has no action")
+    oracle_ids = []
+    for s in steps:
+        for o in (s.get("checkpoints") or []) if isinstance(s, dict) else []:
+            check = o.get("check") if isinstance(o, dict) else None
+            target = check.get("target") if isinstance(check, dict) else None
+            oracle_ids.append(o.get("id") if isinstance(o, dict) else None)
+            if not isinstance(check, dict) or check.get("kind") not in ("visible", "notVisible") or not isinstance(target, dict) or not ({"text", "id"} & set(target)):
+                problems.append(f"check {oracle_ids[-1]} must say visible or notVisible, of a text or an id")
+            elif o.get("observed", "held") not in ("held", "failed"):
+                problems.append(f"check {oracle_ids[-1]}: observed is held or failed")
+    if any(not isinstance(i, str) or not i for i in oracle_ids) or len(set(oracle_ids)) != len(oracle_ids):
+        problems.append("every check needs its own id")
     first = steps[0].get("action", {}) if isinstance(steps[0], dict) else {}
     if trace.get("adapter", {}).get("id") == "mobile-maestro" and first.get("kind") != "launchApp":
         problems.append("the first step of a mobile trace must be launchApp")
@@ -214,17 +267,16 @@ def ecr_adapter(ecr):
 # ---------- the server ----------
 
 class App:
-    def __init__(self, root, ecr=None):
-        self.root = Path(root).resolve()
+    def __init__(self, roots, ecr=None):
+        self.roots = [r.resolve() for r in as_roots(roots)]
+        self.root = self.roots[0]
         self.ecr = str(Path(ecr).resolve()) if ecr else None
         self.lock = threading.Lock()
 
     def folder(self, key):
-        """The results dir of a persona, only if it holds a trace and sits inside the run."""
-        folder = (self.root / key).resolve() if key and key != "." else self.root
-        if folder != self.root and self.root not in folder.parents:
-            return None
-        return folder if (folder / "trace.json").exists() else None
+        """The results dir of a persona, only if it holds a trace and sits inside a run."""
+        folder = locate(self.roots, key)
+        return folder if folder and (folder / "trace.json").exists() else None
 
 
 def make_handler(app):
@@ -252,7 +304,7 @@ def make_handler(app):
                 return self.send(200, (PAGE / name).read_bytes(), kind)
             if url.path == "/api/run":
                 with app.lock:
-                    run = load_run(app.root)
+                    run = load_run(app.roots)
                 run["ecr"] = bool(app.ecr)
                 return self.send(200, run)
             if url.path == "/api/screen":
@@ -277,71 +329,56 @@ def make_handler(app):
             except ValueError:
                 return self.send(400, {"error": "not JSON"})
             if url.path == "/api/notes":
-                if not isinstance(body, dict) or not isinstance(body.get("steps"), dict):
-                    return self.send(400, {"error": "notes need a steps object"})
+                if not isinstance(body, dict) or not isinstance(body.get("screens", {}), dict) or not isinstance(body.get("steps", {}), dict):
+                    return self.send(400, {"error": "notes need a screens object"})
                 body["schema"] = NOTES_SCHEMA
                 with app.lock:
                     write_atomic(folder / "trace.notes.json", body)
                 return self.send(200, {"ok": True})
-            if url.path in ("/api/trace", "/api/compile", "/api/validate"):
-                problems = check_trace(body)
-                if problems:
-                    return self.send(422, {"ok": False, "problems": problems})
-                if url.path == "/api/trace":
-                    return self.save(folder, body)
-                return self.compile(body, url.path == "/api/compile")
+            if url.path == "/api/trace":
+                return self.save(folder, body)
             return self.send(404, {"error": "not found"})
 
         def save(self, folder, trace):
+            """Writes a trace whose checks were edited. Its steps must stay those that were explored."""
+            problems = check_trace(trace)
             with app.lock:
-                if app.ecr:
-                    code, out = self.with_temp_trace(trace, lambda p, _: ecr_command(app.ecr, "validate", p, "--adapter", ecr_adapter(app.ecr)))
-                    if code != 0:
-                        return self.send(422, {"ok": False, "problems": [out]})
                 explored = folder / "trace.explored.json"
+                before = read_json(explored if explored.exists() else folder / "trace.json") or {}
+                strip = lambda t: [{k: v for k, v in st.items() if k != "checkpoints"} for st in t.get("steps", []) if isinstance(st, dict)]
+                if not problems and isinstance(trace, dict) and strip(trace) != strip(before):
+                    problems = ["only checks can change: the steps must stay as explored"]
+                if not problems and app.ecr:
+                    with tempfile.TemporaryDirectory(prefix="dashboard-") as tmp:
+                        path = Path(tmp) / "trace.json"
+                        path.write_text(json.dumps(trace, ensure_ascii=False), encoding="utf-8")
+                        code, out = ecr_command(app.ecr, "validate", str(path), "--adapter", ecr_adapter(app.ecr))
+                    if code != 0:
+                        problems = [out]
+                if problems:
+                    return self.send(422, {"ok": False, "problems": problems})
                 if not explored.exists():
                     shutil.copyfile(folder / "trace.json", explored)
                 write_atomic(folder / "trace.json", trace)
             return self.send(200, {"ok": True, "checkedByEcr": bool(app.ecr)})
 
-        def compile(self, trace, want_flow):
-            if not app.ecr:
-                return self.send(501, {"ok": False, "problems": ["Start the dashboard with --ecr <clone of explore-compile-replay>"]})
-
-            def run(path, out_dir):
-                if not want_flow:
-                    return ecr_command(app.ecr, "validate", path, "--adapter", ecr_adapter(app.ecr))
-                code, out = ecr_command(app.ecr, "compile", path, "--adapter", ecr_adapter(app.ecr), "--out", out_dir)
-                flows = sorted(Path(out_dir).glob("*.yaml"))
-                return code, (flows[0].read_text(encoding="utf-8") if code == 0 and flows else out)
-            code, out = self.with_temp_trace(trace, run)
-            return self.send(200 if code == 0 else 422, {"ok": code == 0, "output": out})
-
-        @staticmethod
-        def with_temp_trace(trace, fn):
-            with tempfile.TemporaryDirectory(prefix="dashboard-") as tmp:
-                path = Path(tmp) / "trace.json"
-                path.write_text(json.dumps(trace, ensure_ascii=False), encoding="utf-8")
-                out_dir = Path(tmp) / "out"
-                out_dir.mkdir()
-                return fn(str(path), str(out_dir))
-
     return Handler
 
 
-def export(root, out):
-    """Writes the page and a run as static files, for the online demo. Edits then stay in the
-    browser and Save downloads the trace. Never export a real run: the files are public once hosted."""
+def export(roots, out):
+    """Writes the page and a run as static files, for the online demo. Comments then stay in the
+    browser and Save downloads them. Never export a real run: the files are public once hosted."""
     out = Path(out)
-    run = load_run(root)
-    run["ecr"] = False
+    roots = as_roots(roots)
+    run = load_run(roots)
     run["static"] = True
-    run["run"] = "Demo run: three testers on a made-up to-do app"
+    run["ecr"] = False
+    run["run"] = "Demo: a made-up to-do app, its map and three testers"
     (out / "api").mkdir(parents=True, exist_ok=True)
     for name, _ in STATIC.values():
         shutil.copyfile(PAGE / name, out / name)
     for i, p in enumerate(run["personas"]):
-        folder = Path(root) / p["key"] if p["key"] != "." else Path(root)
+        folder = locate(roots, p["key"])
         target = out / "screens" / f"t{i + 1}"
         target.mkdir(parents=True, exist_ok=True)
         for screen in p["screens"].values():
@@ -354,9 +391,9 @@ def export(root, out):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("run", nargs="?", help="a collected run (runs/<run id>) or one results dir")
+    parser.add_argument("run", nargs="*", help="collected runs (runs/<run id>), or results dirs. Several: a map run with persona runs")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--ecr", help="a clone of explore-compile-replay, to check and compile with the real command")
+    parser.add_argument("--ecr", help="a clone of explore-compile-replay: each save of checks must pass `ecr validate`")
     parser.add_argument("--demo", action="store_true", help="open a made-up run, to try the page")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--export", metavar="DIR", help="write a static copy for the online demo instead of serving")
@@ -365,28 +402,30 @@ def main(argv=None):
     if args.demo:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import dashboard_demo
-        root = dashboard_demo.write(Path(tempfile.mkdtemp(prefix="dashboard-demo-")))
+        roots = [dashboard_demo.write(Path(tempfile.mkdtemp(prefix="dashboard-demo-")))]
     elif args.run:
-        root = Path(args.run)
+        roots = [Path(r) for r in args.run]
     else:
         parser.error("give a run dir (runs/<run id>), or --demo")
-    if not root.is_dir():
-        parser.error(f"{root} is not a folder")
-    count = len(find_traces(root))
+    for root in roots:
+        if not root.is_dir():
+            parser.error(f"{root} is not a folder")
+    root = roots[0]
+    count = sum(len(find_traces(r)) for r in roots)
     if not count:
         print(f"No trace.json under {root}. Traces come from Android testers (scripts/ecr_trace.py).")
         return 1
     if args.export:
         if not args.demo:
             parser.error("--export is for the demo only: a real run is private")
-        print(f"Static demo written to {export(root, args.export)}")
+        print(f"Static demo written to {export(roots, args.export)}")
         return 0
     if args.ecr and not (Path(args.ecr) / "packages" / "cli" / "src" / "main.ts").exists():
         parser.error(f"{args.ecr} is not a clone of explore-compile-replay")
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(App(root, args.ecr)))
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(App(roots, args.ecr)))
     url = f"http://127.0.0.1:{server.server_port}/"
-    print(f"{count} paths. Dashboard: {url}  (Ctrl+C to stop)")
+    print(f"{count} paths. Map: {url}  (Ctrl+C to stop)")
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

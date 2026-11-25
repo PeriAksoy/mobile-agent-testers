@@ -64,10 +64,14 @@ PATH="$PWD/scripts/android/shim:$PATH" claude -p "Read $BRIEF and personas.json,
   > results/agent-output.json 2> results/agent-errors.txt
 CODE=$?
 python3 scripts/agent_status.py results/agent-output.json results/agent-errors.txt "$PERSONA" || true
-python3 scripts/ecr_trace.py "results/$PERSONA" --persona "$PERSONA" --app-id "$APP_ID" || true   # never fails the run
+python3 scripts/ecr_trace.py "results/$PERSONA" --persona "$PERSONA" --app-id "$APP_ID" --agent-output results/agent-output.json || true   # never fails the run
 if [ -n "$REC" ]; then
   touch /tmp/stop-rec; adb shell pkill -INT screenrecord; sleep 4; kill "$REC" 2>/dev/null
   mkdir -p "results/$PERSONA/video"
   for f in $(adb shell ls /sdcard/ | tr -d '\r' | grep '^rec_'); do adb pull "/sdcard/$f" "results/$PERSONA/video/" >/dev/null 2>&1; done
+fi
+# 6. Optional: the path just written is replayed on the same phone, with no model (docs/replay.md)
+if [ "${REPLAY_PATH:-false}" = true ]; then
+  python3 scripts/ecr_replay.py "results/$PERSONA" --ecr .ecr --persona "$PERSONA" || true   # never fails the run
 fi
 echo "Agent finished (exit $CODE), $(ls "results/$PERSONA" | wc -l) files"

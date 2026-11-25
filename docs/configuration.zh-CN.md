@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | 自动构建时追加的参数，两个平台都生效：Flutter 用 `--dart-define=API_URL=https://staging.example.com`，其他框架是 Gradle 和 xcodebuild 的参数。公开仓库里每次运行的输入都是公开的，密钥请放进 `BUILD_ARGS` secret |
 | `block_hosts` | 测试期间屏蔽的统计分析域名 |
 | `record_video` | 每台手机的录屏，与报告一起加密 |
+| `replay_path` | 实验性，仅 Android：每个代理结束后，在同一台手机上不用模型重放它的操作路径（[docs/replay.md](replay.md)） |
 
 **开箱即用**（自动检测）：
 
