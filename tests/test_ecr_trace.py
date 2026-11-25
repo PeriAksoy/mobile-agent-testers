@@ -89,6 +89,19 @@ class Build(unittest.TestCase):
                                      "1\tadb\tshell\tinput\ttap\t500\t660")
         self.assertEqual([a["target"] for a in actions], [{"text": "Sign in", "index": 1}, {"text": "Create account"}])
 
+    def test_each_step_says_what_was_seen_for_tools_that_show_the_path(self):
+        trace, _, _ = tracer.build([self.screen, "1\tadb\tshell\tinput\ttap\t500\t660", "0\ttype\thello",
+                                    "1\tadb\tshell\tinput\tswipe\t500\t1800\t500\t600\t400", "1\tadb\tshell\tinput\ttap\t540\t1800"],
+                                   PERSONA, "com.example.todo", NOW)
+        seen = [s.get("evidence") for s in trace["steps"]]
+        self.assertEqual(seen, [
+            None,                                                                                          # launchApp: no screen yet
+            {"screen": "01", "point": [500, 660], "bounds": [40, 600, 1040, 720], "size": [1080, 2400]},
+            {"screen": "01"}, {"screen": "01"},                                                            # eraseText, inputText
+            {"screen": "01", "from": [500, 1800], "to": [500, 600], "size": [1080, 2400]},
+            {"screen": "01", "point": [540, 1800], "size": [1080, 2400]},                                  # no element: no bounds
+        ])
+
     def test_an_unreadable_screen_or_line_does_not_stop_the_trace(self):
         (self.dir / "bad.xml").write_text("<hierarchy><node", encoding="utf-8")
         trace, _, _ = tracer.build([f"0\tscreen\t{self.dir / 'bad.xml'}\t1080\t2400", "garbage", "1\tadb\tshell\tinput\ttap\t540\t1200"],

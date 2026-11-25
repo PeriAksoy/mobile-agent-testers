@@ -9,6 +9,8 @@ and the screen trees screen.py saved, and writes in the results dir:
   (https://github.com/pierridotite/explore-compile-replay). A tap is stored with the
   name of the element that was under it, not with its coordinates, so the path
   still replays when the layout moves.
+  Each step also says what was seen (`evidence`: the screenshot before the action,
+  where the finger landed, the screen size), for tools that show the path.
 - trace.params.json: every text the agent typed. The trace holds only their names
   (TEXT_1, TEXT_2...), so it can be committed. This file must not be.
 
@@ -44,7 +46,8 @@ def read_screen(path):
 
 
 def target_at(nodes, x, y, width, height):
-    """How a replay should find what was tapped: by name, else by id, else by position."""
+    """How a replay should find what was tapped: by name, else by id, else by position.
+    Returns the target and the bounds of the element it names (None for a position)."""
     hits = [n for n in nodes if n[2] <= x <= n[4] and n[3] <= y <= n[5] and (n[0] or n[1])]
     hits.sort(key=lambda n: (n[4] - n[2]) * (n[5] - n[3]))   # the smallest element under the finger
     for key in (0, 1):   # a name first: it survives a refactoring better than an id
@@ -55,10 +58,10 @@ def target_at(nodes, x, y, width, height):
             target = {"text" if key == 0 else "id": hit[key]}
             if len(same) > 1:
                 target["index"] = same.index(hit)
-            return target
+            return target, list(hit[2:6])
     if width > 0 and height > 0:
-        return {"point": f"{min(100, max(0, round(100 * x / width)))}%,{min(100, max(0, round(100 * y / height)))}%"}
-    return None
+        return {"point": f"{min(100, max(0, round(100 * x / width)))}%,{min(100, max(0, round(100 * y / height)))}%"}, None
+    return None, None
 
 
 def input_args(fields):
@@ -69,14 +72,16 @@ def input_args(fields):
 
 def build(log_lines, persona, app_id, now):
     steps, params, values, skipped = [], [], {}, []
-    nodes, width, height = [], 0, 0
+    nodes, width, height, screen = [], 0, 0, None
 
-    def add(action, intent=None):
-        step = {"id": f"s{len(steps) + 1}"}
-        if intent:
-            step["intent"] = intent
-        step["action"] = action
-        step["checkpoints"] = []
+    def add(action, **seen):
+        """seen: what a tool needs to show the step (screenshot, finger, screen size). Never used to replay."""
+        step = {"id": f"s{len(steps) + 1}", "action": action, "checkpoints": []}
+        evidence = {key: value for key, value in dict(screen=screen, **seen).items() if value is not None}
+        if width > 0 and height > 0 and ("point" in evidence or "from" in evidence):
+            evidence["size"] = [width, height]
+        if evidence:
+            step["evidence"] = evidence
         steps.append(step)
 
     add({"kind": "launchApp", "appId": app_id, "clearState": True})
@@ -87,6 +92,7 @@ def build(log_lines, persona, app_id, now):
         kind = fields[1]
         if kind == "screen":
             nodes = read_screen(fields[2])
+            screen = Path(fields[2]).stem
             if len(fields) >= 5 and fields[3].isdigit() and fields[4].isdigit():
                 width, height = int(fields[3]), int(fields[4])
         elif kind == "type":
@@ -101,17 +107,19 @@ def build(log_lines, persona, app_id, now):
         elif kind == "adb":
             args = input_args(fields[2:])
             if args[:1] == ["tap"] and len(args) >= 3 and args[1].lstrip("-").isdigit() and args[2].lstrip("-").isdigit():
-                target = target_at(nodes, int(args[1]), int(args[2]), width, height)
+                x, y = int(args[1]), int(args[2])
+                target, bounds = target_at(nodes, x, y, width, height)
                 if target:
-                    add({"kind": "tapOn", "target": target})
+                    add({"kind": "tapOn", "target": target}, point=[x, y], bounds=bounds)
                 else:
                     skipped.append(line.strip())
             elif args[:1] == ["swipe"] and len(args) >= 5 and all(a.lstrip("-").isdigit() for a in args[1:5]):
                 x1, y1, x2, y2 = map(int, args[1:5])
                 if abs(x2 - x1) > abs(y2 - y1):
-                    add({"kind": "swipe", "direction": "LEFT" if x2 < x1 else "RIGHT"})
+                    direction = "LEFT" if x2 < x1 else "RIGHT"
                 else:
-                    add({"kind": "swipe", "direction": "UP" if y2 < y1 else "DOWN"})
+                    direction = "UP" if y2 < y1 else "DOWN"
+                add({"kind": "swipe", "direction": direction}, **{"from": [x1, y1], "to": [x2, y2]})
             elif args[:1] == ["keyevent"] and len(args) == 2 and args[1] in KEYS:
                 add({"kind": "pressKey", "key": KEYS[args[1]]})
             elif args:
