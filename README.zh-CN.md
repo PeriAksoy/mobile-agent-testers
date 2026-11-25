@@ -111,4 +111,10 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 [AXe](https://github.com/cameroncooke/axe) ·
 [android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
 
+## 贡献者
+
+感谢每一位贡献者。想参与？[从这里开始](CONTRIBUTING.md)。
+
+<a href="https://github.com/pierridotite/mobile-agent-testers/graphs/contributors"><img src="https://contrib.rocks/image?repo=pierridotite/mobile-agent-testers" alt="Contributors" /></a>
+
 由 [@pierridotite](https://github.com/pierridotite) 制作（[LinkedIn](https://www.linkedin.com/in/pierre-raffalli/)）· MIT 许可证

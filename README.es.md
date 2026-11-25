@@ -112,4 +112,10 @@ El flujo de este repo sigue siendo gratis, de código abierto y completo. Estoy 
 [AXe](https://github.com/cameroncooke/axe) ·
 [android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
 
+## Colaboradores
+
+Gracias a todas las personas que han contribuido. ¿Quieres ayudar? [Empieza aquí](CONTRIBUTING.md).
+
+<a href="https://github.com/pierridotite/mobile-agent-testers/graphs/contributors"><img src="https://contrib.rocks/image?repo=pierridotite/mobile-agent-testers" alt="Contributors" /></a>
+
 Hecho por [@pierridotite](https://github.com/pierridotite) ([LinkedIn](https://www.linkedin.com/in/pierre-raffalli/)) · licencia MIT

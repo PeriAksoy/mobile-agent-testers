@@ -112,4 +112,10 @@ Isso ajudaria a sua equipe? [Responda três perguntas](https://github.com/pierri
 [AXe](https://github.com/cameroncooke/axe) ·
 [android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
 
+## Contribuidores
+
+Obrigado a todas as pessoas que contribuíram. Quer ajudar? [Comece aqui](CONTRIBUTING.md).
+
+<a href="https://github.com/pierridotite/mobile-agent-testers/graphs/contributors"><img src="https://contrib.rocks/image?repo=pierridotite/mobile-agent-testers" alt="Contributors" /></a>
+
 Feito por [@pierridotite](https://github.com/pierridotite) ([LinkedIn](https://www.linkedin.com/in/pierre-raffalli/)) · licença MIT
