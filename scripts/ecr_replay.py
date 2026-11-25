@@ -59,8 +59,20 @@ def read_result(output):
     return result
 
 
-def summary(result, step_ids):
-    """One public line: a status and counts. Step ids and reasons are names from the trace format, not texts."""
+def kind_of(step):
+    """What kind of step it is, in words of the trace format only: 'tapOn by name', 'inputText'."""
+    action = step.get("action") if isinstance(step, dict) else None
+    if not isinstance(action, dict) or not re.fullmatch(r"[A-Za-z]{1,30}", str(action.get("kind", ""))):
+        return ""
+    target = action.get("target")
+    if not isinstance(target, dict):
+        return action["kind"]
+    how = "name" if "text" in target else "id" if "id" in target else "point" if "point" in target else "target"
+    return f"{action['kind']} by {how}" + (", one of several" if "index" in target else "")
+
+
+def summary(result, step_ids, steps=()):
+    """One public line: a status and counts. Step numbers, kinds and reasons are words of the trace format, not texts."""
     total = len(step_ids)
     status = result["status"]
     if status in ("no_trace", "invalid", "not_compiled", "not_run", "timeout"):
@@ -74,10 +86,12 @@ def summary(result, step_ids):
         return f"pass, {total} steps with no model in {seconds}"
     if status == "fixed":
         return f"a check recorded as a bug holds now, {total} steps with no model in {seconds}"
-    where = ""
+    where, reason = "", result.get("reason", "no reason given")
     if result.get("step") in step_ids:
-        where = f" at step {step_ids.index(result['step']) + 1} of {total}"
-    reason = result.get("reason", "no reason given")
+        at = step_ids.index(result["step"])
+        where = f" at step {at + 1} of {total}"
+        kind = kind_of(steps[at]) if at < len(steps) and status == "fail" else ""
+        reason += f", {kind}" if kind else ""
     if status == "known_bug":
         return f"the bug is still there{where} ({reason}), after {seconds}"
     return f"stopped{where} ({reason}), after {seconds}"
@@ -97,12 +111,12 @@ def run_tool(args, cwd, env, timeout):
 
 
 def replay(results, ecr, env, timeout=1200, run=run_tool):
-    """Validates, compiles and replays results/trace.json. Returns (result, step ids, everything printed)."""
+    """Validates, compiles and replays results/trace.json. Returns (result, steps of the trace, everything printed)."""
     trace_path = results / "trace.json"
     if not trace_path.exists():
         return {"status": "no_trace"}, [], ""
     trace = json.loads(trace_path.read_text(encoding="utf-8"))
-    step_ids = [step.get("id") for step in trace.get("steps", [])]
+    steps = [step for step in trace.get("steps", []) if isinstance(step, dict)]
     try:
         values = json.loads((results / "trace.params.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -118,10 +132,10 @@ def replay(results, ecr, env, timeout=1200, run=run_tool):
 
     code, _ = ecr_command("validate")
     if code != 0:
-        return {"status": "invalid"}, step_ids, "\n".join(printed)
+        return {"status": "invalid"}, steps, "\n".join(printed)
     code, _ = ecr_command("compile", "--out", str(results.resolve()))
     if code != 0:
-        return {"status": "not_compiled"}, step_ids, "\n".join(printed)
+        return {"status": "not_compiled"}, steps, "\n".join(printed)
     started = time.time()
     code, output = ecr_command("replay", limit=timeout)
     result = read_result(output)
@@ -129,7 +143,7 @@ def replay(results, ecr, env, timeout=1200, run=run_tool):
         result = {"status": "timeout", "ms": round(1000 * (time.time() - started))}
     elif result is None:
         result = {"status": "not_run"}
-    return result, step_ids, "\n".join(printed)
+    return result, steps, "\n".join(printed)
 
 
 def main(argv=None, run=run_tool):
@@ -142,10 +156,11 @@ def main(argv=None, run=run_tool):
 
     results = Path(args.results)
     try:
-        result, step_ids, printed = replay(results, Path(args.ecr), dict(os.environ), args.timeout, run)
-    except (OSError, ValueError) as error:
-        result, step_ids, printed = {"status": "not_run"}, [], f"{type(error).__name__}: {error}\n"
-    line = summary(result, step_ids)
+        result, steps, printed = replay(results, Path(args.ecr), dict(os.environ), args.timeout, run)
+    except (OSError, ValueError, AttributeError) as error:
+        result, steps, printed = {"status": "not_run"}, [], f"{type(error).__name__}: {error}\n"
+    step_ids = [step.get("id") for step in steps]
+    line = summary(result, step_ids, steps)
     if result["status"] != "no_trace":
         (results / "replay.txt").write_text(printed, encoding="utf-8")
         kept = dict(result, steps=len(step_ids))

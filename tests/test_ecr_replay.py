@@ -49,10 +49,22 @@ class Parts(unittest.TestCase):
     def test_no_result_when_the_tool_crashed(self):
         self.assertIsNone(replayer.read_result("Error: Could not run Maestro: spawn maestro ENOENT\n"))
 
+    def test_the_kind_of_a_step_uses_words_of_the_format_only(self):
+        kind = lambda action: replayer.kind_of({"id": "s1", "action": action})  # noqa: E731
+        self.assertEqual("tapOn by name", kind({"kind": "tapOn", "target": {"text": "Sign in"}}))
+        self.assertEqual("tapOn by name, one of several", kind({"kind": "tapOn", "target": {"text": {"param": "TEXT_1"}, "index": 1}}))
+        self.assertEqual("tapOn by id", kind({"kind": "tapOn", "target": {"id": "app:id/submit"}}))
+        self.assertEqual("tapOn by point", kind({"kind": "tapOn", "target": {"point": "50%,50%"}}))
+        self.assertEqual("inputText", kind({"kind": "inputText", "text": {"param": "TEXT_1"}}))
+        self.assertEqual("", kind({"kind": "a text of the app, by mistake"}))
+        self.assertEqual("", replayer.kind_of("not a step"))
+
     def test_summary_lines(self):
         ids = ["s1", "s2", "s3"]
         self.assertEqual("pass, 3 steps with no model in 41 s", replayer.summary(replayer.read_result(PASS), ids))
         self.assertEqual("stopped at step 2 of 3 (target_not_found), after 38 s", replayer.summary(replayer.read_result(FAIL), ids))
+        self.assertEqual("stopped at step 2 of 3 (target_not_found, tapOn by name), after 38 s",
+                         replayer.summary(replayer.read_result(FAIL), ids, TRACE["steps"]))
         self.assertEqual("the bug is still there at step 3 of 3 (oracle_failed), after 66 s", replayer.summary(replayer.read_result(BUG), ids))
         self.assertEqual("no trace, nothing to replay", replayer.summary({"status": "no_trace"}, []))
         self.assertIn("replay.txt", replayer.summary({"status": "invalid"}, ids))
@@ -95,9 +107,9 @@ class Run(unittest.TestCase):
     def test_a_failed_replay_never_fails_the_run_and_prints_no_text_of_the_app(self):
         summary_file = self.results.parent / "summary.md"
         code, printed = self.main({"validate": (0, "ok\n"), "compile": (0, "wrote\n"), "replay": (1, FAIL)}, summary_file)
-        self.assertEqual((0, "replay: stopped at step 2 of 3 (target_not_found), after 38 s\n"), (code, printed))
+        self.assertEqual((0, "replay: stopped at step 2 of 3 (target_not_found, tapOn by name), after 38 s\n"), (code, printed))
         self.assertNotIn("Sign in", printed + summary_file.read_text())
-        self.assertEqual("Replay of the path of anna: stopped at step 2 of 3 (target_not_found), after 38 s\n", summary_file.read_text())
+        self.assertEqual("Replay of the path of anna: stopped at step 2 of 3 (target_not_found, tapOn by name), after 38 s\n", summary_file.read_text())
         self.assertIn("Sign in", (self.results / "replay.txt").read_text())   # kept for the owner, in the encrypted results
         kept = json.loads((self.results / "replay.json").read_text())
         self.assertEqual(("fail", "s2", 2, "target_not_found"), (kept["status"], kept["step"], kept["stepNumber"], kept["reason"]))

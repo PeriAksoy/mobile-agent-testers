@@ -30,7 +30,7 @@ With `-f replay_path=true`, each Android tester's path is replayed on the same p
 gh workflow run agent-testers.yml -f android_personas=anna -f ios_personas=none -f replay_path=true
 ```
 
-The run page says how it went in one line, for example `replay: pass, 22 steps with no model in 41 s` or `replay: stopped at step 7 of 22 (target_not_found), after 38 s`. It never prints a text of your app. Three more files join the encrypted results: the compiled flow (`anna-<date>.flow.yaml`), `replay.json` (the status, the step where it stopped and why) and `replay.txt` (everything the tools printed), plus what Maestro kept in `replay-debug/`.
+The run page says how it went in one line, for example `replay: pass, 22 steps with no model in 41 s` or `replay: stopped at step 7 of 22 (target_not_found, tapOn by name), after 38 s`. It never prints a text of your app. Three more files join the encrypted results: the compiled flow (`anna-<date>.flow.yaml`), `replay.json` (the status, the step where it stopped and why) and `replay.txt` (everything the tools printed), plus what Maestro kept in `replay-debug/`.
 
 The replay runs with the model keys taken out of its environment ([scripts/ecr_replay.py](../scripts/ecr_replay.py)), and a replay that stops never fails the run. It adds a few minutes to each tester: installing Maestro, then the replay itself.
 
@@ -44,4 +44,4 @@ When a replay stops, the app may have shown something else the second time (an a
 - **Android only.** iOS comes next.
 - An element with no name and no id is stored as a point on the screen, in percent. It breaks on another screen size.
 - When several elements share a name, the trace keeps the position of the one that was tapped among them.
-- A tap on an element that shows a text the agent typed (a task it just added) is stored by its id, or as a point: typed texts stay out of the trace.
+- Typed texts stay out of the trace, also when the agent taps one: a tap on a task it just added is stored as `TEXT_1`. When the name only holds a typed text (its e-mail in a greeting), the tap is stored by the id of the element, or as a point.

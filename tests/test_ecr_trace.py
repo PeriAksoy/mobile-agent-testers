@@ -80,7 +80,9 @@ class Build(unittest.TestCase):
                                          "0\tadb\tshell\tinput\ttap\t500\t660", "0\tadb\tshell\tinput\ttap\t990\t90"],
                                         PERSONA, "com.example.todo", NOW)
         self.assertEqual(values, {"TEXT_1": "Buy milk"})
-        self.assertEqual([s["action"]["target"] for s in trace["steps"][3:]], [{"id": "app:id/submit"}, {"point": "92%,4%"}])
+        self.assertEqual([s["action"]["target"] for s in trace["steps"][3:]],
+                         [{"id": "app:id/submit"},                 # the name holds the typed text: the id is used
+                          {"text": {"param": "TEXT_1"}}])          # the name is the typed text: stored under its name
         self.assertNotIn("Buy milk", json.dumps(trace))
 
     def test_swipes_and_keys(self):
