@@ -71,7 +71,6 @@ bash scripts/collect.sh <run id>      # raporların şifresini çözer, tekrarla
 
 Uygulamanızın tüm ekranlarını tek bir haritada, test edenlerin yolları ve her ekranda bir ısı haritasıyla görmek ve her ekrana yorum eklemek için: `python3 scripts/dashboard.py runs/<id>` ([docs/dashboard.md](docs/dashboard.md)). [Demoyu deneyin](https://pierridotite.github.io/mobile-agent-testers/) veya [videoyu izleyin](assets/dashboard-demo.mp4).
 
-Demo uygulamada [bilerek bırakılmış 11 hata](demo-app/BUGS.md) var. [Bir çalıştırmada](docs/runs/) 4 demo test edici bunların 9'unu buldu (ajan başına 2 ile 7 dakika, build'ler dahil tüm çalıştırma yaklaşık 21 dakika), ayrıca kimsenin yerleştirmediği gerçek sorunlar da çıktı (Android gezinme çubuğunun altında kalan bir buton, yeniden başlatmadan sonra korunmayan veriler). Model kullanımı: 4 test edici için 0,87 $.
 
 Demo uygulamaya [bilerek 11 hata yerleştirildi](demo-app/BUGS.md). [Bir test çalıştırmasında](docs/runs/) 4 demo tester bu hataların 9'unu buldu. Her ajan 2–7 dakika çalıştı; build'ler dahil tüm süreç yaklaşık 21 dakika sürdü. Ajanlar bunların dışında, kimsenin bilerek eklemediği gerçek sorunlar da buldu: Android gezinme çubuğunun altında kalan bir buton ve uygulama yeniden başlatılınca kaybolan veriler. 4 tester'ın toplam model maliyeti 0,87 $ oldu.
 
@@ -105,7 +104,7 @@ Yardım beklediğimiz konular aşağıda. Aynı işi iki kişi yapmasın diye, b
 - README ve dokümanlar için **çeviriler**.
 - **Model karşılaştırması**: demo uygulamadaki 11 yerleştirilmiş hata küçük bir benchmark işlevi görür. Her modelin hangi hataları bulduğunu ve maliyetini gösteren bir tablo.
 
-## Ekipler için barındırılan sürüm (planlama aşamasında)
+## Ekipler için barındırılan sürüm (araştırılıyor)
 
 Buradaki workflow ücretsiz, açık kaynak ve eksiksiz kalmaya devam edecek. Private uygulamaları olan ekipler için barındırılan bir sürüm üzerinde çalışıyorum. Bu sürüm; macOS runner'larını (private bir repoda GitHub her macOS dakikasını on dakika olarak hesaplar) ve raporların ürün yöneticileri dahil tüm ekiple paylaşılabileceği bir web panelini içerecek.
 
