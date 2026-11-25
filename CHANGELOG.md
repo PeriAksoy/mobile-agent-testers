@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A replayable path for each Android tester (experimental)**: each run now writes `trace.json` next to the report, the taps the agent made stored by the name of the element, not by coordinates. [Explore-Compile-Replay](https://github.com/pierridotite/explore-compile-replay) compiles it to a Maestro flow that reruns with no model. The texts the agent typed are kept apart in `trace.params.json`. The agent's tools and brief do not change. See [docs/replay.md](docs/replay.md).
 - **Shorter README**: the home page keeps what it does, the real runs, the quick start, contributing and the teams section. The FAQ, limits, how it works and the comparison with Maestro moved to [docs/faq.md](docs/faq.md), and every input with the supported frameworks to [docs/configuration.md](docs/configuration.md), in the five languages.
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) and a section in the README with ideas where help is welcome (other agent CLIs like OpenCode, web apps, physical phones, new personas, findings to issues, other CI), where each one starts in the code and how to test it offline.
 - **Build arguments**: the `build_args` input adds arguments to the automatic build of both platforms, like `--dart-define=API_URL=https://staging.example.com` for a Flutter app that needs its backend address (Gradle and xcodebuild arguments for the other frameworks). Keys go in a `BUILD_ARGS` secret, never printed ([scripts/build/args.sh](scripts/build/args.sh)).
