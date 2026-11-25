@@ -29,7 +29,7 @@
     <button id="undo" class="icon" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
     <button id="redo" class="icon" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
     <span class="status" id="status" aria-live="polite"></span>
-    <button id="save" class="primary" title="Save the comments to trace.notes.json (Ctrl+S)">Save</button>
+    <button id="save" class="primary" title="Save the checks to trace.json and the comments to trace.notes.json (Ctrl+S)">Save</button>
   </div>
 </header>
 
@@ -46,7 +46,7 @@
       <label class="select">Path <select id="map-path" aria-label="Show one tester's path"></select></label>
       <button id="map-fit" title="Fit the map to the window">Fit</button>
     </div>
-    <div class="map-legend"><b id="map-summary"></b> · Arrow width: how many testers went from one screen to the next. Dashed: only the map maker. Click a screen to comment it. Drag to move, scroll to zoom.</div>
+    <div class="map-legend"><b id="map-summary"></b> · Arrow width: how many testers went from one screen to the next. Dashed: only the map maker. Click a screen to comment it or add a check. Drag to move, scroll to zoom.</div>
   </div>
   <aside class="panel map-side" id="map-side"></aside>
 </section>

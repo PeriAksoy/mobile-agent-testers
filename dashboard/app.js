@@ -53,11 +53,17 @@ function describe(a) {
 // source map. The authoritative compile is `ecr compile` (button "Compile with ECR").
 
 
-// ---------- state: the run, and the comments of each tester (trace.notes.json) ----------
+// ---------- state: the run, the comments (trace.notes.json) and the checks (trace.json) of each tester ----------
 
-const S = { data: null, notes: {}, saved: {}, undo: [], redo: [], mapSel: null, mapShot: null, mapHeat: "both", mapPan: null, mapPath: null, mapDragged: false };
+const S = { data: null, notes: {}, traces: {}, saved: {}, savedTraces: {}, undo: [], redo: [], picking: null, mapSel: null, mapShot: null, mapHeat: "both", mapPan: null, mapPath: null, mapDragged: false };
 const persona = (key) => S.data.personas.find((p) => p.key === key);
-const traceOf = (key) => persona(key).trace;
+const traceOf = (key) => S.traces[key] || persona(key).trace;
+/** The trace of a tester, ready to take checks. Only checks are ever added: actions stay as explored. */
+function editTrace(key) {
+  if (!S.traces[key]) S.traces[key] = clone(persona(key).trace);
+  if (!(key in S.savedTraces)) S.savedTraces[key] = JSON.stringify(persona(key).trace);
+  return S.traces[key];
+}
 function notesOf(key) {
   if (!S.notes[key]) {
     const n = persona(key).notes;
@@ -68,20 +74,78 @@ function notesOf(key) {
   }
   return S.notes[key];
 }
-const dirtyKeys = () => Object.keys(S.notes).filter((k) => JSON.stringify(S.notes[k]) !== S.saved[k]);
+const dirtyNotes = () => Object.keys(S.notes).filter((k) => JSON.stringify(S.notes[k]) !== S.saved[k]);
+const dirtyTraces = () => Object.keys(S.traces).filter((k) => JSON.stringify(S.traces[k]) !== S.savedTraces[k]);
+const dirtyKeys = () => [...new Set([...dirtyNotes(), ...dirtyTraces()])];
+const snapshot = () => JSON.stringify({ notes: S.notes, traces: S.traces });
 
 function edit(fn) {
-  S.undo.push(JSON.stringify(S.notes)); S.redo = [];
+  S.undo.push(snapshot()); S.redo = [];
   if (S.undo.length > 200) S.undo.shift();
   fn();
   render();
 }
 function undoRedo(from, to) {
   if (!S[from].length) return;
-  S[to].push(JSON.stringify(S.notes));
-  S.notes = JSON.parse(S[from].pop());
+  S[to].push(snapshot());
+  const back = JSON.parse(S[from].pop());
+  S.notes = back.notes; S.traces = back.traces;
   render();
 }
+
+// ---------- checks: what must be on a screen, or must not ----------
+// A check becomes an oracle of the step that led to the screen (ecr.trace/0 checkpoints).
+// "Known bug" records it as observed failed: the compiled flow is red until the bug is fixed.
+
+/** The step after which a screenshot is shown: the one before the step taken from it, or the last step. */
+function stepBefore(key, nn) {
+  const t = traceOf(key);
+  if (t.evidence && t.evidence.lastScreen === nn) return t.steps.length - 1;
+  const i = t.steps.findIndex((st) => st.evidence && st.evidence.screen === nn);
+  return i > 0 ? i - 1 : i;
+}
+function elementSelector(el, elements) {
+  if (el.label && !el.label.includes("${") && el.label.length <= 80 && !el.label.includes("\n")) {
+    const same = elements.filter((e) => e.label === el.label);
+    return same.length > 1 ? { text: el.label, index: same.indexOf(el) } : { text: el.label };
+  }
+  if (el.id) {
+    const same = elements.filter((e) => e.id === el.id);
+    return same.length > 1 ? { id: el.id, index: same.indexOf(el) } : { id: el.id };
+  }
+  return null;
+}
+/** The human time the evaluation protocol of ECR measures: seconds from "Add a check" to the check, and how many. */
+function countEffort(key, started) {
+  const notes = notesOf(key);
+  const e = notes.effort && typeof notes.effort === "object" ? notes.effort : { checkSeconds: 0, checksAdded: 0 };
+  e.checkSeconds = Math.round((e.checkSeconds || 0) + Math.min(900, Math.max(0, (Date.now() - started) / 1000)));
+  e.checksAdded = (e.checksAdded || 0) + 1;
+  notes.effort = e;
+}
+function addCheck(key, nn, target, kind, bug, started) {
+  edit(() => {
+    countEffort(key, started);
+    const t = editTrace(key);
+    const step = t.steps[stepBefore(key, nn)];
+    step.checkpoints = step.checkpoints || [];
+    const used = new Set(t.steps.flatMap((st) => (st.checkpoints || []).map((o) => o.id)));
+    let k = 1; while (used.has(`${step.id}-check${k}`)) k++;
+    step.checkpoints.push({ id: `${step.id}-check${k}`, check: { kind, target }, ...(bug ? { observed: "failed" } : {}) });
+  });
+}
+/** Checks of every tester on the screenshots of a screen. */
+function checksOn(n) {
+  const out = [], seen = new Set();
+  for (const v of n.visits) {
+    const i = stepBefore(v.key, v.nn);
+    if (i < 0 || seen.has(`${v.key}#${i}`)) continue;
+    seen.add(`${v.key}#${i}`);
+    (traceOf(v.key).steps[i].checkpoints || []).forEach((o, j) => out.push({ o, j, i, key: v.key }));
+  }
+  return out;
+}
+const describeCheck = (o) => `${o.check.kind === "visible" ? "Must be visible" : "Must not be visible"}: ${describeSelector(o.check.target)}`;
 
 // ---------- screens and taps ----------
 
@@ -132,7 +196,7 @@ function renderTop() {
   const st = $("#status");
   if (!st.classList.contains("error") || dirty) {
     st.className = "status" + (dirty ? " dirty" : "");
-    st.textContent = dirty ? "Unsaved comments" : st.dataset.saved || "";
+    st.textContent = dirty ? "Unsaved changes" : st.dataset.saved || "";
   }
   $("#save").disabled = !dirty;
 }
@@ -434,14 +498,23 @@ function wireMap() {
 function renderMapSide(map) {
   const side = $("#map-side");
   const where = `${S.mapSel}|${S.mapPath}`;
-  if (side.dataset.where !== where) { side.dataset.where = where; requestAnimationFrame(() => { side.scrollTop = 0; }); }
+  if (side.dataset.where !== where) { side.dataset.where = where; S.picking = null; requestAnimationFrame(() => { side.scrollTop = 0; }); }
   const n = map.nodes.get(S.mapSel);
   if (!n) { side.replaceChildren(h("p", { class: "hint" }, "Click a screen.")); return; }
   const shot = (S.mapShot && n.visits.find((v) => v.key === S.mapShot.key && v.nn === S.mapShot.nn)) || firstVisit(n);
   const info = screenInfo(shot.nn, shot.key);
   const [W, H] = runSize(shot.key);
   const canvas = h("canvas", {});
-  const phone = h("div", { class: "phone map-phone", style: `aspect-ratio:${W} / ${H}` }, h("img", { src: screenUrl(shot.key, shot.nn), alt: "" }), canvas);
+  const overlay = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
+  if (S.picking && info) for (const el of info.elements) {
+    if (!(el.label || el.id) || !elementSelector(el, info.elements)) continue;
+    const [x1, y1, x2, y2] = el.bounds;
+    const r = svgEl("rect", { x: x1, y: y1, width: x2 - x1, height: y2 - y1, class: `pick-el${S.picking.el === el ? " on" : ""}` });
+    const t = svgEl("title"); t.textContent = el.label || el.id; r.append(t);
+    r.addEventListener("click", () => { S.picking.el = el; renderMap(); });
+    overlay.append(r);
+  }
+  const phone = h("div", { class: `phone map-phone${S.picking ? " pick" : ""}`, style: `aspect-ratio:${W} / ${H}` }, h("img", { src: screenUrl(shot.key, shot.nn), alt: "" }), canvas, overlay);
   requestAnimationFrame(() => paintHeat(canvas, mapPoints(n, shot.key, shot.nn), 0.6));
 
   const mapper = S.data.personas.find((p) => p.mapper && n.visits.some((v) => v.key === p.key));
@@ -484,8 +557,10 @@ function renderMapSide(map) {
         h("button", { onclick: () => mutate(x, (l) => { l[x.j].resolved = !l[x.j].resolved; }) }, x.c.resolved ? "Reopen" : "Resolve"),
         h("button", { class: "danger", onclick: () => mutate(x, (l) => l.splice(x.j, 1)) }, "Delete")))),
       input, h("div", { class: "row", style: "margin-top:6px" }, h("span"), h("button", { class: "fit", onclick: add }, "Comment"))),
+    checkBox(n, shot, info),
     fnd.length ? h("div", { class: "box" }, h("h3", {}, "Findings seen here"), h("ul", { class: "list" }, ...fnd.map((f) => h("li", {},
-      h("span", { class: "grow" }, h("span", { class: `dot sev-${f.severity}` }), f.title, h("span", { class: "when" }, `${traceOf(f.key).persona.id} · ${f.severity}`)))))) : null,
+      h("span", { class: "grow" }, h("span", { class: `dot sev-${f.severity}` }), f.title, h("span", { class: "when" }, `${traceOf(f.key).persona.id} · ${f.severity}`)),
+      h("button", { title: "Pick on the screen what shows this bug, or what is missing: the check stays red until the bug is fixed", onclick: () => { S.picking = { el: null, kind: "notVisible", bug: true, started: Date.now() }; renderMap(); } }, "Make it a test"))))) : null,
     h("div", { class: "box" }, h("h3", {}, "Testers who came here"), testers.length ? h("ul", { class: "list" }, ...testers)
       : h("p", { class: "hint", style: "margin:0" }, "No persona reached this screen. Only the map maker did: is it hard to find, or not needed?"),
       mapper ? h("div", { class: "row", style: "margin-top:8px" }, h("span", { class: "hint", style: "margin:0" }, "The map maker's path reaches this screen, and replays with no model."),
@@ -494,27 +569,67 @@ function renderMapSide(map) {
     h("div", { class: "box" }, h("h3", {}, "Leads to"), (() => { const l = flows("out"); return l.length ? h("ul", { class: "list" }, ...l) : h("p", { class: "hint", style: "margin:0" }, "Nobody went further from here."); })())].filter(Boolean));
 }
 
+function checkBox(n, shot, info) {
+  const checks = checksOn(n);
+  const pick = S.picking;
+  const list = checks.length ? h("ul", { class: "list" }, ...checks.map((x) => h("li", { class: x.o.observed === "failed" ? "bug" : "" },
+    h("span", { class: "grow" }, describeCheck(x.o), h("span", { class: "when" }, `${traceOf(x.key).persona.id}, after step ${traceOf(x.key).steps[x.i].id}${x.o.observed === "failed" ? " · known bug: red until fixed" : ""}`)),
+    h("button", { title: x.o.observed === "failed" ? "The bug is fixed: keep this check as a guard" : "This was false during the run: record it as a known bug",
+      onclick: () => edit(() => { const o = editTrace(x.key).steps[x.i].checkpoints[x.j]; if (o.observed === "failed") delete o.observed; else o.observed = "failed"; }) }, x.o.observed === "failed" ? "Fixed" : "Is a bug"),
+    h("button", { class: "danger", onclick: () => edit(() => { const st = editTrace(x.key).steps[x.i]; st.checkpoints.splice(x.j, 1); }) }, "Delete"))))
+    : h("p", { class: "hint", style: "margin:0 0 8px" }, "No check yet: a replay only proves the taps still work.");
+  let form;
+  if (!pick) form = h("div", { class: "row" }, h("span", { class: "hint", style: "margin:0" }, "Checks go to trace.json and compile to Maestro assertions."),
+    h("button", { class: "fit", disabled: !info, onclick: () => { S.picking = { el: null, kind: "visible", bug: false, started: Date.now() }; renderMap(); } }, "Add a check"));
+  else {
+    const target = pick.el && elementSelector(pick.el, info.elements);
+    const kind = h("select", { onchange: (e) => { pick.kind = e.target.value; } }, h("option", { value: "visible", selected: pick.kind === "visible" }, "Must be visible"), h("option", { value: "notVisible", selected: pick.kind === "notVisible" }, "Must not be visible"));
+    const bug = h("input", { type: "checkbox", checked: pick.bug, onchange: (e) => { pick.bug = e.target.checked; } });
+    form = h("div", {},
+      h("p", { class: "hint", style: "margin:0 0 6px" }, target ? `Element: ${describeSelector(target)}` : "Click an element on the screen above."),
+      h("div", { class: "row" }, kind),
+      h("label", { class: "check-bug" }, bug, " It was wrong during the run (known bug)"),
+      h("div", { class: "row", style: "margin-top:6px" }, h("button", { class: "fit", onclick: () => { S.picking = null; renderMap(); } }, "Cancel"), h("span"),
+        h("button", { class: "fit primary", disabled: !target, onclick: () => { S.picking = null; addCheck(shot.key, shot.nn, target, pick.kind, pick.bug, pick.started); } }, "Add check")));
+  }
+  return h("div", { class: "box" }, h("h3", {}, "Checks on this screen", h("span", { class: "hint", style: "margin:0" }, "trace.json")), list, form);
+}
+
 // ---------- saving ----------
 
+async function post(path, key, body) {
+  try {
+    const r = await fetch(`${path}?persona=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(body) });
+    return { ok: r.ok, body: await r.json().catch(() => ({})) };
+  } catch (e) {
+    return { ok: false, body: { problems: ["The dashboard server does not answer. Is it still running?"] } };
+  }
+}
+
 async function save() {
-  const keys = dirtyKeys();
-  if (S.data.static) return saveStatic(keys);
-  for (const key of keys) {
-    try {
-      const r = await fetch(`api/notes?persona=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(S.notes[key]) });
-      if (!r.ok) return flash("Comments not saved", true);
-    } catch (e) {
-      return flash("The dashboard server does not answer. Is it still running?", true);
-    }
+  if (S.data.static) return saveStatic();
+  for (const key of dirtyTraces()) {
+    const r = await post("api/trace", key, S.traces[key]);
+    if (!r.ok) return flash((r.body.problems || ["Checks not saved"]).join(" "), true);
+    S.savedTraces[key] = JSON.stringify(S.traces[key]);
+    persona(key).trace = clone(S.traces[key]);
+  }
+  for (const key of dirtyNotes()) {
+    const r = await post("api/notes", key, S.notes[key]);
+    if (!r.ok) return flash("Comments not saved", true);
     S.saved[key] = JSON.stringify(S.notes[key]);
   }
-  $("#status").dataset.saved = `Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  $("#status").dataset.saved = `Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${S.data.ecr ? " · checked by ECR" : ""}`;
   flash($("#status").dataset.saved);
 }
 
-/** The online demo has no server: comments stay in the page, and Save downloads them. */
-function saveStatic(keys) {
-  for (const key of keys) {
+/** The online demo has no server: edits stay in the page, and Save downloads them. */
+function saveStatic() {
+  for (const key of dirtyTraces()) {
+    download(`${traceOf(key).persona.id}.trace.json`, JSON.stringify(S.traces[key], null, 2) + "\n");
+    S.savedTraces[key] = JSON.stringify(S.traces[key]);
+  }
+  for (const key of dirtyNotes()) {
     download(`${traceOf(key).persona.id}.trace.notes.json`, JSON.stringify(S.notes[key], null, 2) + "\n");
     S.saved[key] = JSON.stringify(S.notes[key]);
   }
@@ -547,6 +662,7 @@ function wire() {
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { if (e.key === "Escape") e.target.blur(); return; }
     if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); undoRedo(e.shiftKey ? "redo" : "undo", e.shiftKey ? "undo" : "redo"); }
     else if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); undoRedo("redo", "undo"); }
+    else if (e.key === "Escape" && S.picking) { S.picking = null; renderMap(); }
     else if (e.key === "Escape" && S.mapPath) { S.mapPath = null; renderMap(); }
   });
   window.addEventListener("resize", () => renderMap());
@@ -567,7 +683,7 @@ async function start() {
   if (S.data.static) {
     document.body.classList.add("static");
     $("#save").textContent = "Download";
-    $("#save").title = "Download the comments as trace.notes.json (Ctrl+S)";
+    $("#save").title = "Download the edited trace.json and trace.notes.json (Ctrl+S)";
     $("#demo-note").hidden = false;
   }
   document.title = `App map · ${S.data.run}`;

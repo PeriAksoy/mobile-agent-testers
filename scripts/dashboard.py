@@ -1,18 +1,21 @@
 """The map of an app's screens, on your machine, with the paths of the testers on it.
 
-Usage: python3 scripts/dashboard.py <collected run dir> [<another run dir> ...] [--port 8765]
+Usage: python3 scripts/dashboard.py <collected run dir> [<another run dir> ...] [--port 8765] [--ecr <clone>]
        python3 scripts/dashboard.py --demo
        python3 scripts/dashboard.py --demo --export site/     # the online demo: static files, no server
 
 Opens a page on http://127.0.0.1:8765 that draws every screen the testers saw as a map:
 one card per screen, arrows from one screen to the next as wide as the number of testers,
-a heat map of real or estimated taps on each screen. Comment a screen; comments go to
-trace.notes.json. Run it on the folders that scripts/collect.sh wrote (runs/<run id>),
-for instance a map maker run (briefs/map.md) with a persona run.
+a heat map of real or estimated taps on each screen. Comment a screen (trace.notes.json),
+or add a check to it: what must be visible or not, possibly a known bug (trace.json).
+Run it on the folders that scripts/collect.sh wrote (runs/<run id>), for instance a map
+maker run (briefs/map.md) with a persona run.
 
 Every path is a trace.json in the Explore-Compile-Replay format
 (https://github.com/pierridotite/explore-compile-replay), which compiles it to a Maestro
-flow that replays with no model. The dashboard only reads traces: it never changes them.
+flow that replays with no model. The dashboard changes only the checks of a trace, never its
+steps, and keeps the explored trace as trace.explored.json the first time. With --ecr <clone>,
+a save is refused unless `ecr validate` accepts the trace (Node 22.18+).
 
 The results are private: the server listens on 127.0.0.1 only, and never serves
 trace.params.json (the texts the agent typed).
@@ -22,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -198,7 +202,43 @@ def load_persona(personas, roots, i, trace_path):
     })
 
 
-# ---------- writing ----------
+# ---------- checking and writing ----------
+
+def check_trace(trace):
+    """The checks that keep a trace usable even without ECR at hand. ECR checks the rest."""
+    problems = []
+    if not isinstance(trace, dict):
+        return ["the trace is not a JSON object"]
+    if trace.get("schema") != "ecr.trace/0":
+        problems.append('schema must be "ecr.trace/0"')
+    steps = trace.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return problems + ["a trace needs at least one step"]
+    ids = [s.get("id") if isinstance(s, dict) else None for s in steps]
+    if any(not isinstance(i, str) or not i for i in ids):
+        problems.append("every step needs an id")
+    elif len(set(ids)) != len(ids):
+        problems.append("two steps have the same id")
+    for s in steps:
+        if not isinstance(s, dict) or not isinstance(s.get("action"), dict) or not s["action"].get("kind"):
+            problems.append(f"step {s.get('id') if isinstance(s, dict) else '?'} has no action")
+    oracle_ids = []
+    for s in steps:
+        for o in (s.get("checkpoints") or []) if isinstance(s, dict) else []:
+            check = o.get("check") if isinstance(o, dict) else None
+            target = check.get("target") if isinstance(check, dict) else None
+            oracle_ids.append(o.get("id") if isinstance(o, dict) else None)
+            if not isinstance(check, dict) or check.get("kind") not in ("visible", "notVisible") or not isinstance(target, dict) or not ({"text", "id"} & set(target)):
+                problems.append(f"check {oracle_ids[-1]} must say visible or notVisible, of a text or an id")
+            elif o.get("observed", "held") not in ("held", "failed"):
+                problems.append(f"check {oracle_ids[-1]}: observed is held or failed")
+    if any(not isinstance(i, str) or not i for i in oracle_ids) or len(set(oracle_ids)) != len(oracle_ids):
+        problems.append("every check needs its own id")
+    first = steps[0].get("action", {}) if isinstance(steps[0], dict) else {}
+    if trace.get("adapter", {}).get("id") == "mobile-maestro" and first.get("kind") != "launchApp":
+        problems.append("the first step of a mobile trace must be launchApp")
+    return problems
+
 
 def write_atomic(path, data):
     path = Path(path)
@@ -207,12 +247,30 @@ def write_atomic(path, data):
     os.replace(tmp, path)
 
 
+def ecr_command(ecr, *args):
+    """Runs the ECR command of a local clone. Returns (exit code, output)."""
+    cli = Path(ecr) / "packages" / "cli" / "src" / "main.ts"
+    node = shutil.which("node")
+    if not node or not cli.exists():
+        return 2, f"ECR not found: needs node and {cli}"
+    try:
+        r = subprocess.run([node, str(cli), *args], cwd=ecr, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return 2, "ECR took more than 60 s"
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def ecr_adapter(ecr):
+    return str(Path(ecr) / "packages" / "adapter-maestro" / "src" / "index.ts")
+
+
 # ---------- the server ----------
 
 class App:
-    def __init__(self, roots):
+    def __init__(self, roots, ecr=None):
         self.roots = [r.resolve() for r in as_roots(roots)]
         self.root = self.roots[0]
+        self.ecr = str(Path(ecr).resolve()) if ecr else None
         self.lock = threading.Lock()
 
     def folder(self, key):
@@ -247,6 +305,7 @@ def make_handler(app):
             if url.path == "/api/run":
                 with app.lock:
                     run = load_run(app.roots)
+                run["ecr"] = bool(app.ecr)
                 return self.send(200, run)
             if url.path == "/api/screen":
                 folder = app.folder(q.get("persona", [""])[0])
@@ -276,7 +335,32 @@ def make_handler(app):
                 with app.lock:
                     write_atomic(folder / "trace.notes.json", body)
                 return self.send(200, {"ok": True})
+            if url.path == "/api/trace":
+                return self.save(folder, body)
             return self.send(404, {"error": "not found"})
+
+        def save(self, folder, trace):
+            """Writes a trace whose checks were edited. Its steps must stay those that were explored."""
+            problems = check_trace(trace)
+            with app.lock:
+                explored = folder / "trace.explored.json"
+                before = read_json(explored if explored.exists() else folder / "trace.json") or {}
+                strip = lambda t: [{k: v for k, v in st.items() if k != "checkpoints"} for st in t.get("steps", []) if isinstance(st, dict)]
+                if not problems and isinstance(trace, dict) and strip(trace) != strip(before):
+                    problems = ["only checks can change: the steps must stay as explored"]
+                if not problems and app.ecr:
+                    with tempfile.TemporaryDirectory(prefix="dashboard-") as tmp:
+                        path = Path(tmp) / "trace.json"
+                        path.write_text(json.dumps(trace, ensure_ascii=False), encoding="utf-8")
+                        code, out = ecr_command(app.ecr, "validate", str(path), "--adapter", ecr_adapter(app.ecr))
+                    if code != 0:
+                        problems = [out]
+                if problems:
+                    return self.send(422, {"ok": False, "problems": problems})
+                if not explored.exists():
+                    shutil.copyfile(folder / "trace.json", explored)
+                write_atomic(folder / "trace.json", trace)
+            return self.send(200, {"ok": True, "checkedByEcr": bool(app.ecr)})
 
     return Handler
 
@@ -288,6 +372,7 @@ def export(roots, out):
     roots = as_roots(roots)
     run = load_run(roots)
     run["static"] = True
+    run["ecr"] = False
     run["run"] = "Demo: a made-up to-do app, its map and three testers"
     (out / "api").mkdir(parents=True, exist_ok=True)
     for name, _ in STATIC.values():
@@ -308,6 +393,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("run", nargs="*", help="collected runs (runs/<run id>), or results dirs. Several: a map run with persona runs")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--ecr", help="a clone of explore-compile-replay: each save of checks must pass `ecr validate`")
     parser.add_argument("--demo", action="store_true", help="open a made-up run, to try the page")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--export", metavar="DIR", help="write a static copy for the online demo instead of serving")
@@ -334,7 +420,10 @@ def main(argv=None):
             parser.error("--export is for the demo only: a real run is private")
         print(f"Static demo written to {export(roots, args.export)}")
         return 0
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(App(roots)))
+    if args.ecr and not (Path(args.ecr) / "packages" / "cli" / "src" / "main.ts").exists():
+        parser.error(f"{args.ecr} is not a clone of explore-compile-replay")
+
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(App(roots, args.ecr)))
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"{count} paths. Map: {url}  (Ctrl+C to stop)")
     if not args.no_browser:
