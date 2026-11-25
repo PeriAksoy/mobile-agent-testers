@@ -1,6 +1,6 @@
 # Kiểm thử ứng dụng của bạn
 
-[English](configuration.md) · [简体中文](configuration.zh-CN.md) · [日本語](configuration.ja.md) · [Español](configuration.es.md) · [Português](configuration.pt-BR.md) · Tiếng Việt
+[English](configuration.md) · [简体中文](configuration.zh-CN.md) · [日本語](configuration.ja.md) · [Español](configuration.es.md) · [Português](configuration.pt-BR.md) · Tiếng Việt · [Türkçe](configuration.tr.md)
 
 ```bash
 gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \

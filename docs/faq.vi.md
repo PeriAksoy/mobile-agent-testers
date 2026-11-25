@@ -1,6 +1,6 @@
 # Câu hỏi thường gặp
 
-[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · [Português](faq.pt-BR.md) · Tiếng Việt
+[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · [Português](faq.pt-BR.md) · Tiếng Việt · [Türkçe](faq.tr.md)
 
 ## Có phải 20 agent chỉ tìm thấy cùng một bug 20 lần?
 

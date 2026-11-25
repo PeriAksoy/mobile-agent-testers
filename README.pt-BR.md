@@ -8,7 +8,7 @@
 
 **[Exemplos](docs/examples.pt-BR.md)** · **[Comparação](docs/compare.md)** · **[Perguntas frequentes](docs/faq.pt-BR.md)** · **[Personas](personas.json)** · **[Contribuir](CONTRIBUTING.md)** · **[Versões](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · Português · [Tiếng Việt](README.vi.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · Português · [Tiếng Việt](README.vi.md) · [Türkçe](README.tr.md)
 
 <sub>Tradução do README em inglês: pode estar atrasada, a referência é o [README.md](README.md).</sub>
 

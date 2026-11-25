@@ -10,7 +10,7 @@
 
 **[Ví dụ](docs/examples.vi.md)** · **[So sánh](docs/compare.md)** · **[FAQ](docs/faq.vi.md)** · **[Personas](personas.json)** · **[Đóng góp](CONTRIBUTING.md)** · **[Bản phát hành](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · Tiếng Việt
+[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · Tiếng Việt · [Türkçe](README.tr.md)
 
 <sub>Bản dịch của README tiếng Anh: có thể chậm hơn bản gốc, bản chuẩn là [README.md](README.md).</sub>
 
