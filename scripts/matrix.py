@@ -22,10 +22,12 @@ for pid in wanted:
     d = p.get("device", {})
     geo = p.get("geo") or [48.8566, 2.3522]
     row = {"persona": pid, "theme": d.get("theme", "light"), "locale": p.get("locale", "en-US"),
-           "geo": f"{geo[0]},{geo[1]}"}
+           "geo": f"{geo[0]},{geo[1]}",
+           "increase_contrast": "true" if d.get("increase_contrast") else "false"}
     if platform == "ios":
         row.update({"simulator": d.get("simulator", "iPhone 16"), "ios": str(d.get("ios", "18")),
-                    "text_size": d.get("text_size", "large")})
+                    "text_size": d.get("text_size", "large"),
+                    "reduce_motion": "true" if d.get("reduce_motion") else "false"})
     else:
         row.update({"profile": d.get("profile", "pixel_6"), "api": d.get("android_api", 34),
                     "font_scale": str(d.get("font_scale", 1.0)), "device": d.get("name", "Pixel 6, Android 14")})

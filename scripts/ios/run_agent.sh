@@ -9,6 +9,17 @@ for h in $BLOCK_HOSTS; do
 done
 xcrun simctl ui "$UDID" appearance "${THEME:-light}"
 xcrun simctl ui "$UDID" content_size "${TEXT_SIZE:-large}"
+# Accessibility settings, before the app starts so it reads them at launch
+A11Y=""
+if [ "${INCREASE_CONTRAST:-false}" = true ]; then
+  xcrun simctl ui "$UDID" increase_contrast enabled && A11Y="$A11Y, increase contrast on" \
+    || echo "increase_contrast not supported by this Xcode: persona runs without it"
+fi
+if [ "${REDUCE_MOTION:-false}" = true ]; then
+  # simctl ui has no reduce motion setting: the simulator reads this key
+  xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true \
+    && A11Y="$A11Y, reduce motion on" || echo "Could not set reduce motion: persona runs without it"
+fi
 xcrun simctl location "$UDID" set "$GEO" 2>/dev/null || true
 APP=$(find app -maxdepth 2 -name '*.app' -type d | head -1)
 xcrun simctl install "$UDID" "$APP" || { echo "install failed"; exit 1; }
@@ -30,7 +41,7 @@ if [ "${RECORD_VIDEO:-false}" = true ]; then
 fi
 # The agent (another model API if llm_base_url is set)
 source scripts/llm_env.sh || exit 1
-claude -p "Read $BRIEF and personas.json, then do the mission until the final report. PERSONA=$PERSONA PLATFORM=ios APP_ID=$APP_ID. Device: $DEVICE, text size ${TEXT_SIZE:-large}, theme ${THEME:-light}, language $LOCALE. The simulator is already booted and the tools find it on their own (UDID is set): use the commands of the brief directly. Report anything that does not fit this screen (cut text, off-screen buttons, under the notch or home bar, broken layout)." \
+claude -p "Read $BRIEF and personas.json, then do the mission until the final report. PERSONA=$PERSONA PLATFORM=ios APP_ID=$APP_ID. Device: $DEVICE, text size ${TEXT_SIZE:-large}, theme ${THEME:-light}${A11Y}, language $LOCALE. The simulator is already booted and the tools find it on their own (UDID is set): use the commands of the brief directly. Report anything that does not fit this screen (cut text, off-screen buttons, under the notch or home bar, broken layout)." \
   --model "${MODEL:-sonnet}" --max-turns 400 --output-format json \
   --allowedTools "Bash(bash scripts/ios/gesture.sh:*),Bash(python3 scripts/ios/screen.py:*),Bash(python3 scripts/ios/type.py:*),Bash(sleep:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Read,Write,Edit" \
   > results/agent-output.json 2> results/agent-errors.txt

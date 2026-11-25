@@ -42,7 +42,7 @@
     "goal": "Read every screen and complete one task without zooming.",
     "locale": "en-US",
     "geo": [41.8781, -87.6298],
-    "device": {"name": "Pixel 7, Android 14, 200% font", "profile": "pixel_7", "android_api": 34, "font_scale": 2.0, "theme": "light"}
+    "device": {"name": "Pixel 7, Android 14, 200% font", "profile": "pixel_7", "android_api": 34, "font_scale": 2.0, "theme": "light", "increase_contrast": true}
   },
   {
     "id": "lucia",
@@ -150,7 +150,7 @@
     "goal": "Complete one task: every button must stay readable and reachable.",
     "locale": "sv-SE",
     "geo": [59.3293, 18.0686],
-    "device": {"simulator": "iPhone SE (3rd generation)", "ios": 18, "text_size": "accessibility-extra-extra-extra-large", "theme": "dark"}
+    "device": {"simulator": "iPhone SE (3rd generation)", "ios": 18, "text_size": "accessibility-extra-extra-extra-large", "theme": "dark", "increase_contrast": true, "reduce_motion": true}
   },
   {
     "id": "giulia",

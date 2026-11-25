@@ -92,7 +92,7 @@ Ideas where help is welcome. Open an issue first to say which one you take, so t
 - **Other agent CLIs**: OpenCode, Codex CLI, Gemini CLI, Goose. The tools are plain scripts and the mission is a Markdown brief, so the agent is one command per platform.
 - **Web apps**: the same personas on a mobile browser with Playwright, for PWAs and mobile sites.
 - **Physical Android phones** over adb, on a self-hosted runner.
-- **New personas**: increased contrast, reduced motion, color blindness filters, a slow or flaky network.
+- **New personas**: color blindness filters, a slow or flaky network.
 - **Findings to issues**: turn the summary into draft GitHub issues with their screenshots, or a Slack or Discord message.
 - **Other CI**: GitLab CI, Bitrise, Codemagic.
 - **More build systems**: NativeScript, Unity, Godot, each one case in `scripts/build/`.
