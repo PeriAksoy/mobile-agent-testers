@@ -50,14 +50,19 @@ if [ "${RECORD_VIDEO:-false}" = true ]; then
     done ) &
   REC=$!
 fi
-# 5. The agent: only the listed tools, nothing else (another model API if llm_base_url is set)
+# 5. The agent: only the listed tools, nothing else (another model API if llm_base_url is set).
+# Its adb goes through scripts/android/shim/adb, which notes each tap and runs the real adb:
+# scripts/ecr_trace.py turns these notes into a path that replays with no model.
 source scripts/llm_env.sh || exit 1
-claude -p "Read $BRIEF and personas.json, then do the mission until the final report. PERSONA=$PERSONA PLATFORM=android APP_ID=$APP_ID. Device: ${DEVICE}, font scale x${FONT_SCALE:-1.0}, theme ${THEME:-light}${A11Y}, language $LOCALE. Report anything that does not fit this screen (cut text, off-screen buttons, broken layout)." \
+export ECR_REAL_ADB="$(command -v adb)" ECR_ACTION_LOG="$PWD/results/$PERSONA/actions.tsv"
+: > "$ECR_ACTION_LOG"
+PATH="$PWD/scripts/android/shim:$PATH" claude -p "Read $BRIEF and personas.json, then do the mission until the final report. PERSONA=$PERSONA PLATFORM=android APP_ID=$APP_ID. Device: ${DEVICE}, font scale x${FONT_SCALE:-1.0}, theme ${THEME:-light}${A11Y}, language $LOCALE. Report anything that does not fit this screen (cut text, off-screen buttons, broken layout)." \
   --model "${MODEL:-sonnet}" --max-turns 400 --output-format json \
   --allowedTools "Bash(adb:*),Bash(python3 scripts/android/screen.py:*),Bash(python3 scripts/android/type.py:*),Bash(sleep:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Read,Write,Edit" \
   > results/agent-output.json 2> results/agent-errors.txt
 CODE=$?
 python3 scripts/agent_status.py results/agent-output.json results/agent-errors.txt "$PERSONA" || true
+python3 scripts/ecr_trace.py "results/$PERSONA" --persona "$PERSONA" --app-id "$APP_ID" || true   # never fails the run
 if [ -n "$REC" ]; then
   touch /tmp/stop-rec; adb shell pkill -INT screenrecord; sleep 4; kill "$REC" 2>/dev/null
   mkdir -p "results/$PERSONA/video"

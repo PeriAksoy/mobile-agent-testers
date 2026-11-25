@@ -32,6 +32,14 @@ try:
     root = ET.fromstring(xml[xml.find("<"):])
 except ET.ParseError:
     root = ET.Element("hierarchy")
+try:  # kept for scripts/ecr_trace.py, which turns the taps of this run into a replayable trace
+    (out / f"{nn}.xml").write_text(xml[xml.find("<"):] if "<" in xml else "", encoding="utf-8")
+    log = os.environ.get("ECR_ACTION_LOG")
+    if log:
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(f"0\tscreen\t{out / (nn + '.xml')}\t{w}\t{h}\n")
+except Exception:  # noting the screen must never break seeing it
+    pass
 nodes = list(root.iter("node"))
 for n in nodes:
     text, desc = (n.get("text") or "").strip(), (n.get("content-desc") or "").strip()

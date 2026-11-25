@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A replayable path for each Android tester (experimental)**: each run now writes `trace.json` next to the report, the taps the agent made stored by the name of the element, not by coordinates. [Explore-Compile-Replay](https://github.com/pierridotite/explore-compile-replay) compiles it to a Maestro flow that reruns with no model. The texts the agent typed are kept apart in `trace.params.json`. The agent's tools and brief do not change. See [docs/replay.md](docs/replay.md).
 - **Increased contrast and reduced motion**: two optional persona switches. `increase_contrast` turns on Increase Contrast on iOS (`simctl ui`) and high contrast text on Android; `reduce_motion` turns on Reduce Motion on iOS. Android emulators already run with animations off. Both are set before the app starts, and the agent is told about them. Grace and Sven use them.
 - **Shorter README**: the home page keeps what it does, the real runs, the quick start, contributing and the teams section. The FAQ, limits, how it works and the comparison with Maestro moved to [docs/faq.md](docs/faq.md), and every input with the supported frameworks to [docs/configuration.md](docs/configuration.md), in the five languages.
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) and a section in the README with ideas where help is welcome (other agent CLIs like OpenCode, web apps, physical phones, new personas, findings to issues, other CI), where each one starts in the code and how to test it offline.
