@@ -23,7 +23,7 @@ class Run(unittest.TestCase):
 
     def test_every_tester_of_the_demo_has_a_valid_path(self):
         run = dashboard.load_run(self.root)
-        self.assertEqual(sorted(p["trace"]["persona"]["id"] for p in run["personas"]), ["anna", "kenji", "lucas"])
+        self.assertEqual(sorted(p["trace"]["persona"]["id"] for p in run["personas"]), ["anna", "kenji", "lucas", "map"])
         for p in run["personas"]:
             self.assertEqual(dashboard.check_trace(p["trace"]), [])
             self.assertTrue(p["screens"])
@@ -51,6 +51,27 @@ class Run(unittest.TestCase):
         moved["steps"].reverse()
         self.assertIn("the first step of a mobile trace must be launchApp", dashboard.check_trace(moved))
         self.assertEqual(dashboard.check_trace([]), ["the trace is not a JSON object"])
+
+    def test_the_map_maker_is_marked_and_finds_a_screen_no_persona_reached(self):
+        run = dashboard.load_run(self.root)
+        mapper = [p for p in run["personas"] if p["mapper"]]
+        self.assertEqual([p["trace"]["persona"]["id"] for p in mapper], ["map"])
+        groups = lambda ps: {s["group"] for p in ps for s in p["screens"].values()}
+        others = [p for p in run["personas"] if not p["mapper"]]
+        only_mapped = groups(mapper) - groups(others)
+        self.assertEqual([run["groups"][g]["title"] for g in only_mapped], ["Help"])
+
+    def test_two_runs_open_together_with_distinct_keys(self):
+        other = dashboard_demo.write(Path(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, other, True)
+        run = dashboard.load_run([self.root, other])
+        keys = [p["key"] for p in run["personas"]]
+        self.assertEqual(len(keys), 8)
+        self.assertEqual(len(set(keys)), 8)
+        self.assertTrue(all(k.startswith(("1:", "2:")) for k in keys))
+        self.assertIn(other.resolve(), dashboard.locate([self.root, other], keys[-1]).parents)
+        self.assertIsNone(dashboard.locate([self.root, other], "3:android-anna/results/anna"))
+        self.assertIsNone(dashboard.locate([self.root, other], "1:../.."))
 
 
 class Export(unittest.TestCase):
@@ -107,7 +128,7 @@ class Server(unittest.TestCase):
         self.assertEqual(self.get("/app.js")[0], 200)
         code, body = self.get("/api/run")
         self.assertEqual(code, 200)
-        self.assertEqual(len(json.loads(body)["personas"]), 3)
+        self.assertEqual(len(json.loads(body)["personas"]), 4)
         self.assertNotIn(b"S3cret-pass", body)
 
     def test_only_screenshots_are_served(self):
@@ -147,6 +168,10 @@ class Server(unittest.TestCase):
         saved = json.loads((self.anna / "trace.notes.json").read_text())
         self.assertEqual(saved["schema"], dashboard.NOTES_SCHEMA)
         self.assertEqual(saved["steps"]["s2"][0]["text"], "Too small")
+        notes["screens"] = {"03": [{"id": "c2", "text": "Empty list says nothing", "at": "2026-11-25T12:00:00Z", "resolved": False}]}
+        self.assertEqual(self.post(f"/api/notes?persona={key}", notes)[0], 200)
+        saved = json.loads((self.anna / "trace.notes.json").read_text())
+        self.assertEqual(saved["screens"]["03"][0]["text"], "Empty list says nothing")
         self.assertEqual(self.post("/api/notes?persona=../../..", notes)[0], 404)
 
     def test_compiling_needs_ecr(self):
