@@ -2,6 +2,7 @@
 
 <a href="https://github.com/pierridotite/explore-compile-replay"><img src="assets/ecr-now-building.svg" alt="Tiếp theo: mọi bug đều trở thành một test miễn phí. Explore-Compile-Replay" width="340" height="54"></a>
 <a href="https://www.linkedin.com/in/pierre-raffalli/"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/linkedin-follow-dark.svg"><img src="assets/linkedin-follow-light.svg" alt="Theo dõi Pierre Raffalli trên LinkedIn" width="160" height="54"></picture></a>
+<a href="https://trendshift.io/repositories/371956?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-371956" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/371956/daily?language=Python" alt="pierridotite%2Fmobile-agent-testers | Trendshift" width="250" height="55"/></a>
 
 <sub>Dự án tiếp theo của tôi: khi một agent tìm thấy một bug, <a href="https://github.com/pierridotite/explore-compile-replay">Explore-Compile-Replay</a> biến đường đi của nó thành một test chạy lại trên mọi PR, không cần model. Bản nháp đầu tiên.</sub>
 
@@ -114,5 +115,11 @@ Workflow ở đây vẫn miễn phí, mã nguồn mở và đầy đủ. Tôi đ
 [Claude Code](https://docs.claude.com/en/docs/claude-code) ·
 [AXe](https://github.com/cameroncooke/axe) ·
 [android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
+
+## Người đóng góp
+
+Cảm ơn tất cả những người đã đóng góp. Muốn giúp một tay? [Bắt đầu tại đây](CONTRIBUTING.md).
+
+<a href="https://github.com/pierridotite/mobile-agent-testers/graphs/contributors"><img src="https://contrib.rocks/image?repo=pierridotite/mobile-agent-testers" alt="Contributors" /></a>
 
 Được làm bởi [@pierridotite](https://github.com/pierridotite) ([LinkedIn](https://www.linkedin.com/in/pierre-raffalli/)) · Giấy phép MIT
