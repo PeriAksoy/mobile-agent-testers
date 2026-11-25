@@ -1,6 +1,6 @@
 # Perguntas frequentes
 
-[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · Português
+[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · Português · [Tiếng Việt](faq.vi.md)
 
 ## 20 agentes não acham o mesmo bug 20 vezes?
 

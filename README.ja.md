@@ -8,7 +8,7 @@
 
 **[適用例](docs/examples.ja.md)** · **[比較](docs/compare.md)** · **[よくある質問](docs/faq.ja.md)** · **[ペルソナ](personas.json)** · **[コントリビュート](CONTRIBUTING.md)** · **[リリース](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
-[English](README.md) · [简体中文](README.zh-CN.md) · 日本語 · [Español](README.es.md) · [Português](README.pt-BR.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · 日本語 · [Español](README.es.md) · [Português](README.pt-BR.md) · [Tiếng Việt](README.vi.md)
 
 <sub>このページは英語版の翻訳です。更新が遅れることがあるため、最新の内容は [README.md](README.md) をご覧ください。</sub>
 
