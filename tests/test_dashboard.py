@@ -1,4 +1,4 @@
-"""scripts/dashboard.py, offline: the demo run, the screen groups, what the server serves and writes."""
+"""scripts/dashboard.py, offline: the demo run, the screen groups, what the server serves and writes (comments only)."""
 import json
 import shutil
 import sys
@@ -25,7 +25,6 @@ class Run(unittest.TestCase):
         run = dashboard.load_run(self.root)
         self.assertEqual(sorted(p["trace"]["persona"]["id"] for p in run["personas"]), ["anna", "kenji", "lucas", "map"])
         for p in run["personas"]:
-            self.assertEqual(dashboard.check_trace(p["trace"]), [])
             self.assertTrue(p["screens"])
             self.assertTrue(all("_tokens" not in s for s in p["screens"].values()))
             self.assertIn("lastScreen", p["trace"]["evidence"])
@@ -40,17 +39,6 @@ class Run(unittest.TestCase):
     def test_typed_texts_never_reach_the_page(self):
         for p in dashboard.load_run(self.root)["personas"]:
             self.assertNotIn("S3cret-pass", json.dumps(p))
-
-    def test_check_trace(self):
-        trace = json.loads(next(self.root.rglob("trace.json")).read_text())
-        self.assertEqual(dashboard.check_trace(trace), [])
-        broken = json.loads(json.dumps(trace))
-        broken["steps"][2]["id"] = broken["steps"][1]["id"]
-        self.assertIn("two steps have the same id", dashboard.check_trace(broken))
-        moved = json.loads(json.dumps(trace))
-        moved["steps"].reverse()
-        self.assertIn("the first step of a mobile trace must be launchApp", dashboard.check_trace(moved))
-        self.assertEqual(dashboard.check_trace([]), ["the trace is not a JSON object"])
 
     def test_the_map_maker_is_marked_and_finds_a_screen_no_persona_reached(self):
         run = dashboard.load_run(self.root)
@@ -82,7 +70,6 @@ class Export(unittest.TestCase):
         dashboard.export(root, out / "site")
         run = json.loads((out / "site" / "api" / "run").read_text())
         self.assertTrue(run["static"])
-        self.assertFalse(run["ecr"])
         for name in ("index.html", "app.js", "style.css", "api/run.json"):
             self.assertTrue((out / "site" / name).exists(), name)
         for p in run["personas"]:
@@ -139,26 +126,6 @@ class Server(unittest.TestCase):
         self.assertEqual(self.get("/api/screen?persona=../../etc&name=01.png")[0], 404)
         self.assertEqual(self.get("/trace.params.json")[0], 404)
 
-    def test_saving_keeps_the_explored_trace_once(self):
-        key = "android-anna/results/anna"
-        explored = json.loads((self.anna / "trace.json").read_text())
-        edited = json.loads(json.dumps(explored))
-        edited["steps"][1]["intent"] = "Starts"
-        del edited["steps"][2]
-        self.assertEqual(self.post(f"/api/trace?persona={key}", edited), (200, {"ok": True, "checkedByEcr": False}))
-        self.assertEqual(json.loads((self.anna / "trace.json").read_text()), edited)
-        self.assertEqual(json.loads((self.anna / "trace.explored.json").read_text()), explored)
-        edited["steps"][1]["intent"] = "Starts again"
-        self.post(f"/api/trace?persona={key}", edited)
-        self.assertEqual(json.loads((self.anna / "trace.explored.json").read_text()), explored)   # still the explored one
-
-    def test_a_broken_trace_is_not_written(self):
-        key = "android-anna/results/anna"
-        before = (self.anna / "trace.json").read_text()
-        code, body = self.post(f"/api/trace?persona={key}", {"schema": "ecr.trace/0", "steps": []})
-        self.assertEqual(code, 422)
-        self.assertEqual((self.anna / "trace.json").read_text(), before)
-
     def test_notes_and_the_guard_against_other_sites(self):
         key = "android-anna/results/anna"
         notes = {"steps": {"s2": [{"id": "c1", "text": "Too small", "at": "2026-11-25T12:00:00Z", "resolved": False}]}, "trace": []}
@@ -174,9 +141,12 @@ class Server(unittest.TestCase):
         self.assertEqual(saved["screens"]["03"][0]["text"], "Empty list says nothing")
         self.assertEqual(self.post("/api/notes?persona=../../..", notes)[0], 404)
 
-    def test_compiling_needs_ecr(self):
-        trace = json.loads((self.anna / "trace.json").read_text())
-        self.assertEqual(self.post("/api/compile?persona=android-anna/results/anna", trace)[0], 501)
+    def test_traces_are_never_written(self):
+        key = "android-anna/results/anna"
+        before = (self.anna / "trace.json").read_text()
+        for path in ("/api/trace", "/api/compile"):
+            self.assertEqual(self.post(f"{path}?persona={key}", {"schema": "ecr.trace/0", "steps": []})[0], 404)
+        self.assertEqual((self.anna / "trace.json").read_text(), before)
 
 
 if __name__ == "__main__":
