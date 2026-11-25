@@ -93,6 +93,10 @@ class Build(unittest.TestCase):
         trace, _, _ = tracer.build([self.screen, "1\tadb\tshell\tinput\ttap\t500\t660", "0\ttype\thello",
                                     "1\tadb\tshell\tinput\tswipe\t500\t1800\t500\t600\t400", "1\tadb\tshell\tinput\ttap\t540\t1800"],
                                    PERSONA, "com.example.todo", NOW)
+        self.assertNotIn("evidence", trace)   # no screenshot after the last action: the last screen is unknown
+        after, _, _ = tracer.build([self.screen, "1\tadb\tshell\tinput\ttap\t500\t660", self.screen.replace("01.xml", "02.xml")],
+                                   PERSONA, "com.example.todo", NOW)
+        self.assertEqual(after["evidence"], {"lastScreen": "02"})
         seen = [s.get("evidence") for s in trace["steps"]]
         self.assertEqual(seen, [
             None,                                                                                          # launchApp: no screen yet

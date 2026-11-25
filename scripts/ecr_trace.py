@@ -72,7 +72,7 @@ def input_args(fields):
 
 def build(log_lines, persona, app_id, now):
     steps, params, values, skipped = [], [], {}, []
-    nodes, width, height, screen = [], 0, 0, None
+    nodes, width, height, screen, last_screen = [], 0, 0, None, None
 
     def add(action, **seen):
         """seen: what a tool needs to show the step (screenshot, finger, screen size). Never used to replay."""
@@ -83,6 +83,8 @@ def build(log_lines, persona, app_id, now):
         if evidence:
             step["evidence"] = evidence
         steps.append(step)
+        nonlocal last_screen
+        last_screen = None   # known again at the next screenshot
 
     add({"kind": "launchApp", "appId": app_id, "clearState": True})
     for line in log_lines:
@@ -92,7 +94,7 @@ def build(log_lines, persona, app_id, now):
         kind = fields[1]
         if kind == "screen":
             nodes = read_screen(fields[2])
-            screen = Path(fields[2]).stem
+            screen = last_screen = Path(fields[2]).stem
             if len(fields) >= 5 and fields[3].isdigit() and fields[4].isdigit():
                 width, height = int(fields[3]), int(fields[4])
         elif kind == "type":
@@ -142,6 +144,7 @@ def build(log_lines, persona, app_id, now):
         "params": params,
         "invariants": [],
         "steps": steps,
+        **({"evidence": {"lastScreen": last_screen}} if last_screen else {}),
         "provenance": {"exploredAt": now, "agent": "mobile-agent-testers"},
     }
     return trace, {name: text for text, name in values.items()}, skipped
