@@ -32,7 +32,7 @@
 
 ## 可以自己定义角色吗？
 
-可以。一个角色就是 [personas.json](../personas.json) 里的几行：设备、系统版本、语言、字号、深色模式、位置、这个人是谁，以及想做什么。
+可以。一个角色就是 [personas.json](../personas.json) 里的几行：设备、系统版本、语言、字号、深色模式、位置、这个人是谁，以及想做什么。`device` 里有两个可选开关：`"increase_contrast": true`（iOS 上的“增强对比度”，Android 上的高对比度文字）和 `"reduce_motion": true`（仅 iOS：Android 模拟器本来就关闭了动画）。
 
 ## 它会出什么错？
 

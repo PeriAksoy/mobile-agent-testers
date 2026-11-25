@@ -94,7 +94,7 @@ Các ý tưởng mà sự giúp đỡ của bạn được chào đón. Mở m�
 - **Các agent CLI khác**: OpenCode, Codex CLI, Gemini CLI, Goose. Các công cụ là script thuần và nhiệm vụ là một brief Markdown, nên agent là một lệnh cho mỗi nền tảng.
 - **Ứng dụng web**: cùng các persona trên một trình duyệt di động bằng Playwright, cho PWA và các trang web di động.
 - **Điện thoại Android thật** qua adb, trên một self-hosted runner.
-- **Persona mới**: tăng độ tương phản, giảm chuyển động, bộ lọc mù màu, một mạng chậm hoặc chập chờn.
+- **Persona mới**: bộ lọc mù màu, một mạng chậm hoặc chập chờn.
 - **Từ phát hiện thành issue**: biến bản tóm tắt thành các GitHub issue nháp kèm ảnh chụp màn hình của chúng, hoặc một tin nhắn Slack hay Discord.
 - **CI khác**: GitLab CI, Bitrise, Codemagic.
 - **Thêm hệ thống build**: NativeScript, Unity, Godot, mỗi cái là một case trong `scripts/build/`.

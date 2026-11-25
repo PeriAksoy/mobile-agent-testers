@@ -94,7 +94,7 @@ Yardıma açık olduğumuz fikirler. Aynı şeyi iki kişi yapmasın diye, hangi
 - **Diğer ajan CLI'ları**: OpenCode, Codex CLI, Gemini CLI, Goose. Araçlar sade scriptler, görev de bir Markdown talimatı; bu yüzden ajan, platform başına tek bir komut.
 - **Web uygulamaları**: aynı personalar, Playwright ile bir mobil tarayıcıda; PWA'lar ve mobil siteler için.
 - **Fiziksel Android telefonlar**, adb üzerinden, self-hosted bir runner'da.
-- **Yeni personalar**: artırılmış kontrast, azaltılmış hareket, renk körlüğü filtreleri, yavaş ya da kesintili bir ağ.
+- **Yeni personalar**: renk körlüğü filtreleri, yavaş ya da kesintili bir ağ.
 - **Bulgulardan issue'lara**: özeti ekran görüntüleriyle birlikte taslak GitHub issue'larına ya da bir Slack veya Discord mesajına dönüştürmek.
 - **Diğer CI'lar**: GitLab CI, Bitrise, Codemagic.
 - **Daha fazla build sistemi**: NativeScript, Unity, Godot; her biri `scripts/build/` içinde bir case.

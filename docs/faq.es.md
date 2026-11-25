@@ -32,7 +32,7 @@ Sí. Ejecuta el workflow desde un repositorio privado, con un `SOURCE_REPO_TOKEN
 
 ## ¿Puedo crear mis propias personas?
 
-Sí. Una persona son unas pocas líneas en [personas.json](../personas.json): dispositivo, versión del sistema, idioma, tamaño de texto, modo oscuro, ubicación, quién es y qué intenta hacer.
+Sí. Una persona son unas pocas líneas en [personas.json](../personas.json): dispositivo, versión del sistema, idioma, tamaño de texto, modo oscuro, ubicación, quién es y qué intenta hacer. Dos opciones en `device`: `"increase_contrast": true` (Aumentar contraste en iOS, texto de alto contraste en Android) y `"reduce_motion": true` (solo iOS: los emuladores Android ya corren sin animaciones).
 
 ## ¿En qué se equivoca?
 

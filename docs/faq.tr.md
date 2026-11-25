@@ -32,7 +32,7 @@ Evet. Workflow'u, uygulamanın reposu için salt okunur bir `SOURCE_REPO_TOKEN` 
 
 ## Kendi personalarımı oluşturabilir miyim?
 
-Evet. Bir persona, [personas.json](../personas.json) içinde birkaç satırdır: cihaz, işletim sistemi sürümü, dil, yazı boyutu, karanlık mod, konum, kim olduğu ve ne yapmaya çalıştığı.
+Evet. Bir persona, [personas.json](../personas.json) içinde birkaç satırdır: cihaz, işletim sistemi sürümü, dil, yazı boyutu, karanlık mod, konum, kim olduğu ve ne yapmaya çalıştığı. `device` içinde iki isteğe bağlı ayar var: `"increase_contrast": true` (iOS'ta Kontrastı Artır, Android'de yüksek kontrastlı metin) ve `"reduce_motion": true` (yalnızca iOS: Android emülatörleri zaten animasyonsuz çalışır).
 
 ## Neyi yanlış yapıyor?
 

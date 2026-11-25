@@ -90,7 +90,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 - **其他智能体 CLI**：OpenCode、Codex CLI、Gemini CLI、Goose。工具都是普通脚本，任务是一份 Markdown 说明，所以每个平台只需换一条命令。
 - **Web 应用**：用 Playwright 在手机浏览器里跑同样的角色，覆盖 PWA 和移动网站。
 - **真实 Android 手机**：在自托管 runner 上通过 adb 连接。
-- **新角色**：增强对比度、减弱动态效果、色盲滤镜、慢速或不稳定的网络。
+- **新角色**：色盲滤镜、慢速或不稳定的网络。
 - **把发现变成 issue**：把汇总转成带截图的 GitHub issue 草稿，或发到 Slack、Discord。
 - **其他 CI**：GitLab CI、Bitrise、Codemagic。
 - **更多构建系统**：NativeScript、Unity、Godot，每种在 `scripts/build/` 里加一个分支。

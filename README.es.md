@@ -91,7 +91,7 @@ Ideas en las que se agradece ayuda. Abre primero un issue para decir cuál tomas
 - **Otros CLI de agentes**: OpenCode, Codex CLI, Gemini CLI, Goose. Las herramientas son scripts normales y la misión es un brief en Markdown, así que el agente es un solo comando por plataforma.
 - **Apps web**: las mismas personas en un navegador móvil con Playwright, para PWA y sitios móviles.
 - **Teléfonos Android físicos** por adb, en un runner propio.
-- **Nuevas personas**: más contraste, menos movimiento, filtros de daltonismo, una red lenta o inestable.
+- **Nuevas personas**: filtros de daltonismo, una red lenta o inestable.
 - **De hallazgos a issues**: convertir el resumen en borradores de issues de GitHub con sus capturas, o en un mensaje de Slack o Discord.
 - **Otros CI**: GitLab CI, Bitrise, Codemagic.
 - **Más sistemas de compilación**: NativeScript, Unity, Godot, cada uno un caso en `scripts/build/`.
