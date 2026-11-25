@@ -112,6 +112,22 @@ class Build(unittest.TestCase):
                                    PERSONA, "com.example.todo", NOW)
         self.assertEqual(trace["steps"][1]["action"], {"kind": "tapOn", "target": {"point": "50%,50%"}})
 
+    def test_the_trace_names_the_model_that_explored_when_the_run_says_it(self):
+        output = self.dir / "agent-output.json"
+        result = {"type": "result", "subtype": "success",
+                  "modelUsage": {"small-model": {"outputTokens": 120}, "main-model": {"outputTokens": 9000}}}
+        for printed in (result, [{"type": "system"}, result]):
+            output.write_text(json.dumps(printed), encoding="utf-8")
+            self.assertEqual(tracer.model_of(output), "main-model")
+        for printed in ("", "not json", "{}", '{"modelUsage": {}}', '{"modelUsage": []}'):
+            output.write_text(printed, encoding="utf-8")
+            self.assertIsNone(tracer.model_of(output))
+        self.assertIsNone(tracer.model_of(self.dir / "missing.json"))
+        named, _, _ = tracer.build([self.screen], PERSONA, "com.example.todo", NOW, "main-model")
+        self.assertEqual(named["provenance"], {"exploredAt": NOW, "agent": "mobile-agent-testers", "model": "main-model"})
+        unnamed, _, _ = tracer.build([self.screen], PERSONA, "com.example.todo", NOW)
+        self.assertNotIn("model", unnamed["provenance"])
+
 
 class EndToEnd(unittest.TestCase):
     """The pass-through adb and type.py write the notes, trace.py reads them."""

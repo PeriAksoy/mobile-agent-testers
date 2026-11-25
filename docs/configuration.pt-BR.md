@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | Argumentos extras para a compilação automática das duas plataformas, como `--dart-define=API_URL=https://staging.example.com` no Flutter (argumentos de Gradle e xcodebuild nos outros). Chaves vão num secret `BUILD_ARGS`: num repositório público, as entradas de cada execução são públicas |
 | `block_hosts` | Hosts de analytics bloqueados durante os testes |
 | `record_video` | Gravação de tela de cada celular, criptografada com os relatórios |
+| `replay_path` | Experimental, Android: depois de cada agente, o percurso dele é repetido no mesmo celular sem modelo ([docs/replay.md](replay.md)) |
 
 **Suportados de fábrica** (detecção automática):
 

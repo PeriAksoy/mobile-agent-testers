@@ -1,7 +1,8 @@
 """Turns what an agent did on the phone into a trace that can be replayed with no model.
 
 Usage: python3 scripts/ecr_trace.py <results dir of one persona> --persona ID --app-id ID
-           [--personas personas.json] [--log actions.tsv] [--now 2026-01-01T00:00:00Z]
+           [--personas personas.json] [--log actions.tsv] [--agent-output agent-output.json]
+           [--now 2026-01-01T00:00:00Z]
 
 Reads the notes taken during the run (scripts/android/shim/adb, screen.py, type.py)
 and the screen trees screen.py saved, and writes in the results dir:
@@ -70,7 +71,23 @@ def input_args(fields):
     return words[1:] if words[:1] == ["input"] else []
 
 
-def build(log_lines, persona, app_id, now):
+def model_of(path):
+    """The model that did most of the run, read from what `claude -p --output-format json` printed. None when unknown."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(data, list):   # some versions print every message: the result comes last
+        data = next((m for m in reversed(data) if isinstance(m, dict) and m.get("type") == "result"), None)
+    usage = data.get("modelUsage") if isinstance(data, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    written = {name: (use.get("outputTokens") or 0) if isinstance(use, dict) else 0 for name, use in usage.items()}
+    names = [name for name in written if isinstance(name, str) and name and isinstance(written[name], (int, float))]
+    return max(names, key=lambda name: written[name]) if names else None
+
+
+def build(log_lines, persona, app_id, now, model=None):
     steps, params, values, skipped = [], [], {}, []
     nodes, width, height, screen, last_screen = [], 0, 0, None, None
 
@@ -145,7 +162,7 @@ def build(log_lines, persona, app_id, now):
         "invariants": [],
         "steps": steps,
         **({"evidence": {"lastScreen": last_screen}} if last_screen else {}),
-        "provenance": {"exploredAt": now, "agent": "mobile-agent-testers"},
+        "provenance": {"exploredAt": now, "agent": "mobile-agent-testers", **({"model": model} if model else {})},
     }
     return trace, {name: text for text, name in values.items()}, skipped
 
@@ -157,6 +174,7 @@ def main(argv=None):
     parser.add_argument("--app-id", required=True)
     parser.add_argument("--personas", default="personas.json")
     parser.add_argument("--log")
+    parser.add_argument("--agent-output")
     parser.add_argument("--now")
     args = parser.parse_args(argv)
 
@@ -172,7 +190,8 @@ def main(argv=None):
     except (OSError, ValueError):
         pass
     now = args.now or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    trace, values, skipped = build(log.read_text(encoding="utf-8").splitlines(), persona, args.app_id, now)
+    model = model_of(args.agent_output) if args.agent_output else None
+    trace, values, skipped = build(log.read_text(encoding="utf-8").splitlines(), persona, args.app_id, now, model)
     if len(trace["steps"]) < 2:
         print("trace: the agent did nothing that can be replayed, nothing written")
         return 0

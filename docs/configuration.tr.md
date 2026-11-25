@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | Her iki platformun otomatik build'i için ek argümanlar; Flutter için `--dart-define=API_URL=https://staging.example.com` gibi (diğerleri için Gradle ve xcodebuild argümanları). Anahtarlar bir `BUILD_ARGS` secret'ına konur: public bir repoda çalıştırma girdileri herkese açıktır |
 | `block_hosts` | Testler sırasında engellenen analitik host'ları |
 | `record_video` | Her telefonun ekran kaydı, raporlarla birlikte şifrelenir |
+| `replay_path` | Deneysel, Android: her ajandan sonra izlediği yol aynı telefonda modelsiz olarak yeniden oynatılır ([docs/replay.md](replay.md)) |
 
 **Hazır desteklenenler** (otomatik algılanır):
 

@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | Đối số bổ sung cho quá trình build tự động của cả hai nền tảng, như `--dart-define=API_URL=https://staging.example.com` cho Flutter (đối số Gradle và xcodebuild cho các framework khác). Key để trong secret `BUILD_ARGS`: input của lần chạy là công khai trên repo công khai |
 | `block_hosts` | Các host phân tích bị chặn trong lúc kiểm thử |
 | `record_video` | Quay màn hình của mỗi điện thoại, được mã hóa cùng các báo cáo |
+| `replay_path` | Thử nghiệm, Android: sau mỗi agent, đường đi của nó được chạy lại trên cùng điện thoại, không cần mô hình ([docs/replay.md](replay.md)) |
 
 **Hỗ trợ sẵn** (tự động phát hiện):
 
