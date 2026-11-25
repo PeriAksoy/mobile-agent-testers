@@ -1,6 +1,6 @@
 # Các ví dụ thực tế
 
-[English](examples.md) · [简体中文](examples.zh-CN.md) · [日本語](examples.ja.md) · [Español](examples.es.md) · [Português](examples.pt-BR.md) · Tiếng Việt
+[English](examples.md) · [简体中文](examples.zh-CN.md) · [日本語](examples.ja.md) · [Español](examples.es.md) · [Português](examples.pt-BR.md) · Tiếng Việt · [Türkçe](examples.tr.md)
 
 Các lần chạy thật trên các ứng dụng mã nguồn mở, không gài sẵn gì cả. Mọi con số đều lấy từ [các lần chạy](runs/), nơi mỗi báo cáo được liệt kê theo từng thiết bị.
 

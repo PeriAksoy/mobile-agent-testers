@@ -1,6 +1,6 @@
 # 应用实例
 
-[English](examples.md) · 简体中文 · [日本語](examples.ja.md) · [Español](examples.es.md) · [Português](examples.pt-BR.md) · [Tiếng Việt](examples.vi.md)
+[English](examples.md) · 简体中文 · [日本語](examples.ja.md) · [Español](examples.es.md) · [Português](examples.pt-BR.md) · [Tiếng Việt](examples.vi.md) · [Türkçe](examples.tr.md)
 
 在开源应用上的真实运行，没有预先埋入任何缺陷。 所有数字都来自[运行记录](runs/)，那里逐台设备列出了每一份报告。
 

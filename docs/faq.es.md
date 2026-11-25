@@ -1,6 +1,6 @@
 # Preguntas frecuentes
 
-[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · Español · [Português](faq.pt-BR.md) · [Tiếng Việt](faq.vi.md)
+[English](faq.md) · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · Español · [Português](faq.pt-BR.md) · [Tiếng Việt](faq.vi.md) · [Türkçe](faq.tr.md)
 
 ## ¿20 agentes no encuentran 20 veces el mismo error?
 

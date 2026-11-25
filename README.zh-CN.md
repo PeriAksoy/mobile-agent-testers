@@ -8,7 +8,7 @@
 
 **[应用实例](docs/examples.zh-CN.md)** · **[对比](docs/compare.md)** · **[常见问题](docs/faq.zh-CN.md)** · **[角色](personas.json)** · **[参与贡献](CONTRIBUTING.md)** · **[版本](https://github.com/pierridotite/mobile-agent-testers/releases)**
 
-[English](README.md) · 简体中文 · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · [Tiếng Việt](README.vi.md)
+[English](README.md) · 简体中文 · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt-BR.md) · [Tiếng Việt](README.vi.md) · [Türkçe](README.tr.md)
 
 <sub>本页译自英文版，可能稍有滞后，以 [README.md](README.md) 为准。</sub>
 

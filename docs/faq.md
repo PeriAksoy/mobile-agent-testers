@@ -1,6 +1,6 @@
 # FAQ
 
-English · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · [Português](faq.pt-BR.md) · [Tiếng Việt](faq.vi.md)
+English · [简体中文](faq.zh-CN.md) · [日本語](faq.ja.md) · [Español](faq.es.md) · [Português](faq.pt-BR.md) · [Tiếng Việt](faq.vi.md) · [Türkçe](faq.tr.md)
 
 ## Do 20 agents just find the same bug 20 times?
 
