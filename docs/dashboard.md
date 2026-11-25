@@ -42,6 +42,10 @@ python3 scripts/dashboard.py runs/<run id> --ecr ../explore-compile-replay
 
 A save is then refused if ECR finds the trace invalid, and "Compile with ECR" in the Maestro flow tab compares ECR's flow with the preview.
 
+## The online demo
+
+`python3 scripts/dashboard.py --demo --export site/` writes the page and the made-up run as static files that any web host can serve. With no server, edits stay in the page and Save downloads the edited `trace.json`. Only the demo can be exported: a real run is private.
+
 ## Limits
 
 - Android only, like the traces.

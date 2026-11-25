@@ -53,6 +53,27 @@ class Run(unittest.TestCase):
         self.assertEqual(dashboard.check_trace([]), ["the trace is not a JSON object"])
 
 
+class Export(unittest.TestCase):
+    def test_the_static_demo_has_the_page_the_run_and_every_screen(self):
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, out, True)
+        root = dashboard_demo.write(out / "run")
+        dashboard.export(root, out / "site")
+        run = json.loads((out / "site" / "api" / "run").read_text())
+        self.assertTrue(run["static"])
+        self.assertFalse(run["ecr"])
+        for name in ("index.html", "app.js", "style.css", "api/run.json"):
+            self.assertTrue((out / "site" / name).exists(), name)
+        for p in run["personas"]:
+            for screen in p["screens"].values():
+                self.assertTrue((out / "site" / screen["url"]).is_file())
+        self.assertNotIn(str(root), json.dumps(run))   # no local path in a public file
+
+    def test_a_real_run_is_never_exported(self):
+        with self.assertRaises(SystemExit):
+            dashboard.main(["runs/x", "--export", "site"])
+
+
 class Server(unittest.TestCase):
     def setUp(self):
         self.root = dashboard_demo.write(Path(tempfile.mkdtemp()))

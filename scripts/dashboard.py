@@ -2,6 +2,7 @@
 
 Usage: python3 scripts/dashboard.py <collected run dir> [--port 8765] [--ecr <explore-compile-replay clone>]
        python3 scripts/dashboard.py --demo
+       python3 scripts/dashboard.py --demo --export site/     # the online demo: static files, no server
 
 Opens a page on http://127.0.0.1:8765 that shows each tester's path step by step
 (the screenshot before each action, where the finger landed, a heat map of the taps),
@@ -328,6 +329,29 @@ def make_handler(app):
     return Handler
 
 
+def export(root, out):
+    """Writes the page and a run as static files, for the online demo. Edits then stay in the
+    browser and Save downloads the trace. Never export a real run: the files are public once hosted."""
+    out = Path(out)
+    run = load_run(root)
+    run["ecr"] = False
+    run["static"] = True
+    run["run"] = "Demo run: three testers on a made-up to-do app"
+    (out / "api").mkdir(parents=True, exist_ok=True)
+    for name, _ in STATIC.values():
+        shutil.copyfile(PAGE / name, out / name)
+    for i, p in enumerate(run["personas"]):
+        folder = Path(root) / p["key"] if p["key"] != "." else Path(root)
+        target = out / "screens" / f"t{i + 1}"
+        target.mkdir(parents=True, exist_ok=True)
+        for screen in p["screens"].values():
+            shutil.copyfile(folder / screen["file"], target / screen["file"])
+            screen["url"] = f"screens/t{i + 1}/{screen['file']}"
+    for name in ("run", "run.json"):   # "run" is what the page asks for first
+        (out / "api" / name).write_text(json.dumps(run, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("run", nargs="?", help="a collected run (runs/<run id>) or one results dir")
@@ -335,6 +359,7 @@ def main(argv=None):
     parser.add_argument("--ecr", help="a clone of explore-compile-replay, to check and compile with the real command")
     parser.add_argument("--demo", action="store_true", help="open a made-up run, to try the page")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--export", metavar="DIR", help="write a static copy for the online demo instead of serving")
     args = parser.parse_args(argv)
 
     if args.demo:
@@ -351,6 +376,11 @@ def main(argv=None):
     if not count:
         print(f"No trace.json under {root}. Traces come from Android testers (scripts/ecr_trace.py).")
         return 1
+    if args.export:
+        if not args.demo:
+            parser.error("--export is for the demo only: a real run is private")
+        print(f"Static demo written to {export(root, args.export)}")
+        return 0
     if args.ecr and not (Path(args.ecr) / "packages" / "cli" / "src" / "main.ts").exists():
         parser.error(f"{args.ecr} is not a clone of explore-compile-replay")
 

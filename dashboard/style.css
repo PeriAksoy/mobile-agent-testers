@@ -220,3 +220,5 @@ h2:first-child { margin-top: 0; }
   .ecr { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.demo-note { color: #fff; background: var(--accent-2); border-radius: 14px; padding: 4px 12px; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.demo-note[hidden] { display: none; }

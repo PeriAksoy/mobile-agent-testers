@@ -261,7 +261,8 @@ function shownScreen(i, trace = tr()) {
 }
 const screenUrl = (key, nn) => {
   const s = screenInfo(nn, key);
-  return s ? `/api/screen?persona=${encodeURIComponent(key)}&name=${encodeURIComponent(s.file)}` : null;
+  if (!s) return null;
+  return s.url || `api/screen?persona=${encodeURIComponent(key)}&name=${encodeURIComponent(s.file)}`;
 };
 const groupTitle = (g) => (g && S.data.groups[g] && S.data.groups[g].title) || "";
 /** The name of a screenshot: its own title (in the tester's language), else the title of its group. */
@@ -885,7 +886,7 @@ function renderReport() {
 
 async function post(url, body) {
   try {
-    const r = await fetch(`${url}?persona=${encodeURIComponent(S.key)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(body) });
+    const r = await fetch(`${url.slice(1)}?persona=${encodeURIComponent(S.key)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(body) });
     return { ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) };
   } catch (e) {
     return { ok: false, status: 0, body: { problems: ["The dashboard server does not answer. Is it still running?"] } };
@@ -893,6 +894,7 @@ async function post(url, body) {
 }
 
 async function save() {
+  if (S.data.static) return saveStatic();
   const keys = S.data.personas.map((p) => p.key).filter((k) => S.ws[k] && dirty(S.ws[k]));
   const back = S.key;
   for (const key of keys) {
@@ -916,6 +918,18 @@ async function save() {
   }
   S.key = back;
   $("#status").dataset.saved = `Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${S.data.ecr ? " · checked by ECR" : ""}`;
+  flash($("#status").dataset.saved);
+}
+
+/** The online demo has no server: edits stay in the page, and Save downloads the edited files. */
+function saveStatic() {
+  const w = ws();
+  const check = checkTrace(w.trace);
+  if (check.count) return flash(`Fix ${check.count} problem${check.count > 1 ? "s" : ""} before saving`, true);
+  download("trace.json", JSON.stringify(w.trace, null, 2) + "\n");
+  if (Object.keys(w.notes.steps).length || w.notes.trace.length) download("trace.notes.json", JSON.stringify(w.notes, null, 2) + "\n");
+  w.saved = snapshot(w);
+  $("#status").dataset.saved = "Downloaded: this demo saves nothing online";
   flash($("#status").dataset.saved);
 }
 
@@ -1039,7 +1053,8 @@ function heatButtons() {
 
 async function start() {
   try {
-    const r = await fetch("/api/run");
+    let r = await fetch("api/run");
+    if (!r.ok) r = await fetch("api/run.json");   // the static demo (scripts/dashboard.py --export)
     S.data = await r.json();
   } catch (e) {
     $("#loading").textContent = "Could not read the run. Is the dashboard server running?";
@@ -1047,6 +1062,12 @@ async function start() {
   }
   if (!S.data.personas.length) { $("#loading").textContent = "No trace.json in this run."; return; }
   $("#run-name").textContent = S.data.run;
+  if (S.data.static) {
+    document.body.classList.add("static");
+    $("#save").textContent = "Download";
+    $("#save").title = "Download the edited trace.json (Ctrl+S)";
+    $("#demo-note").hidden = false;
+  }
   document.title = `Tester paths · ${S.data.run}`;
   S.key = S.data.personas[0].key;
   wire();
