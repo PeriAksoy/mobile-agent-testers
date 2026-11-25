@@ -1,18 +1,36 @@
 # Watch and edit the paths of the testers (experimental)
 
-Each Android tester leaves its path in `trace.json` ([docs/replay.md](replay.md)). The dashboard shows these paths on your machine, step by step, and lets you edit them before they become tests.
+Each Android tester leaves its path in `trace.json` ([docs/replay.md](replay.md)). The dashboard draws every screen of the app as a map, puts the paths of the testers on it, and lets you comment each screen and edit each path before it becomes a test.
 
-<img src="../assets/dashboard.png" alt="The dashboard: testers on the left, the screen of the selected step with a heat map of the taps, the step on the right, the timeline at the bottom" width="900">
+<a href="https://pierridotite.github.io/mobile-agent-testers/"><img src="../assets/dashboard.png" alt="The dashboard: every screen of the made-up app as a map, arrows as wide as the number of testers, a heat map on each screen, the selected screen on the right" width="900"></a>
+
+[Try the demo online](https://pierridotite.github.io/mobile-agent-testers/), with a made-up app, or [watch the 70-second video](../assets/dashboard-demo.mp4).
 
 ```bash
 bash scripts/collect.sh <run id>                 # decrypts the results into runs/<run id>/
 python3 scripts/dashboard.py runs/<run id>       # opens http://127.0.0.1:8765
 python3 scripts/dashboard.py --demo              # a made-up run, to try it
+python3 scripts/dashboard.py runs/<map run> runs/<run id>   # several runs on one map
 ```
 
 Python 3.9 or later, nothing to install. The page runs in your browser and the results never leave your machine: the server listens on `127.0.0.1` only and never serves `trace.params.json`, the texts the agent typed.
 
-## What it shows
+## First, find every screen
+
+ECR starts by exploring. Here, that is the job of the map maker: an agent with [briefs/map.md](../briefs/map.md) instead of a persona's brief. It opens every control of every screen once, breadth first, and comes back. Its path is a trace like any other, so each screen it found has a path that replays with no model. Run the workflow with `brief: briefs/map.md`; one persona is enough.
+
+Open its run together with the persona runs. The map then shows every screen of the app, and the screens no persona reached are marked "No persona came here": a part of the app the testers never saw, or never found.
+
+## The map
+
+- **One card per screen**, with the screenshot, how many testers came, how many taps, and the findings seen there. Screenshots of the same screen are grouped, even across languages (by the ids of their elements).
+- **Arrows** from one screen to the next. The wider the arrow, the more testers went that way. A dashed arrow is a way only the map maker took.
+- **A heat map on each screen**: the real taps of the testers, an estimate of where people would look and tap, or both (the estimate fills in where testers tapped little). The estimate weighs each control by its size and by how often testers tapped it on other screens. A file `NN.saliency.json` next to a screenshot (`{"points": [[x, y, weight], ...]}`, x and y from 0 to 1), from a saliency model of your choice, replaces it.
+- Click a screen to open it on the right: its screenshots, its comments, the findings, the testers who came and where they came from and went next. "Open path" shows that tester's path in the Paths view.
+
+Drag to move the map, scroll to zoom. Comments on a screen go to `trace.notes.json` of the first tester who saw it, under `screens`.
+
+## The paths
 
 - **The timeline**, one column per step, like a video editor: the screens the tester went through, the actions, the checks, the comments and the findings of the report on the screens where they were seen. Play it (Space), step through it (arrows), drag the red playhead.
 - **The screen before each step**, with where the finger landed and the element that was under it. A swipe is an arrow.
@@ -49,5 +67,6 @@ A save is then refused if ECR finds the trace invalid, and "Compile with ECR" in
 ## Limits
 
 - Android only, like the traces.
+- The estimated heat map is a guess from the screen's controls, not a model trained on eye tracking. Use real taps, or a saliency file, when it matters.
 - Screenshots are grouped by the ids of their elements. An app without ids (many Flutter apps) is grouped by the names of its buttons, so the same screen in two languages counts as two.
 - The page has been tried on the demo run and on traces written by the offline tests. Not yet on a run on a real emulator.

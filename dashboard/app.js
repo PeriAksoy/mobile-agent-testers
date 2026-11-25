@@ -207,7 +207,7 @@ async function compileFlow(trace) {
 
 const S = {
   data: null, key: null, ws: {}, sel: {}, playing: false, timer: null, speed: 1,
-  heat: "me", zoom: 112, tab: "step", picking: null, ecrFlow: null, lastCoalesce: null,
+  heat: "me", zoom: 112, view: "map", mapSel: null, mapShot: null, mapHeat: "both", mapPan: null, tab: "step", picking: null, ecrFlow: null, lastCoalesce: null,
 };
 const persona = (key = S.key) => S.data.personas.find((p) => p.key === key);
 function ws(key = S.key) {
@@ -216,6 +216,7 @@ function ws(key = S.key) {
     const notes = p.notes && typeof p.notes === "object" ? clone(p.notes) : {};
     notes.steps = notes.steps && typeof notes.steps === "object" ? notes.steps : {};
     notes.trace = Array.isArray(notes.trace) ? notes.trace : [];
+    notes.screens = notes.screens && typeof notes.screens === "object" ? notes.screens : {};
     S.ws[key] = { trace: clone(p.trace), notes, undo: [], redo: [] };
     S.ws[key].saved = snapshot(S.ws[key]);
   }
@@ -269,9 +270,8 @@ const groupTitle = (g) => (g && S.data.groups[g] && S.data.groups[g].title) || "
 const screenTitle = (info, nn) => (info && (info.title || groupTitle(info.group))) || `Screen ${nn}`;
 
 /** Taps and swipes on every screenshot of a group, in [0, 1] of the screen. */
-function heatPoints(group) {
+function heatPoints(group, keys = S.heat === "all" ? S.data.personas.map((p) => p.key) : [S.key]) {
   const pts = [];
-  const keys = S.heat === "all" ? S.data.personas.map((p) => p.key) : [S.key];
   for (const key of keys) {
     const trace = S.ws[key] ? S.ws[key].trace : persona(key).trace;
     for (const step of trace.steps) {
@@ -292,6 +292,10 @@ function heatPoints(group) {
 // ---------- rendering ----------
 
 function render(opts = {}) {
+  document.body.dataset.view = S.view;
+  for (const b of document.querySelectorAll("[data-mapheat]")) b.setAttribute("aria-checked", String(b.dataset.mapheat === S.mapHeat));
+  for (const b of document.querySelectorAll("[data-view]")) b.setAttribute("aria-checked", String(b.dataset.view === S.view));
+  if (S.view === "map") { renderTop(); renderMap(); return; }
   renderTop();
   renderPersonas();
   renderPreview();
@@ -323,7 +327,7 @@ function renderPersonas() {
     const issues = (p.findings && p.findings.issues) || [];
     const score = p.findings && p.findings.score;
     return h("li", {}, h("button", { "aria-current": String(p.key === S.key), onclick: () => selectPersona(p.key) },
-      h("span", { class: "name" }, h("span", {}, t.persona.id), h("span", {},
+      h("span", { class: "name" }, h("span", {}, p.mapper ? "map maker" : t.persona.id), h("span", {},
         w && dirty(w) ? h("span", { class: "badge edited" }, "unsaved") : p.edited ? h("span", { class: "badge" }, "edited") : null)),
       h("span", { class: "meta" }, [ctx.device, t.persona.locale].filter(Boolean).join(" · ")),
       h("span", { class: "meta" }, `${t.steps.length} steps · ${issues.length} findings${score !== undefined ? ` · ${score}/10` : ""}`)));
@@ -400,18 +404,24 @@ const RAMP = (() => {
 
 function drawHeat(pts) {
   const canvas = $("#heat");
+  if (S.heat === "off" || $("#shot").hidden) pts = [];
+  paintHeat(canvas, pts);
+}
+
+/** Paints points ({x, y in 0..1, weight, r: radius as a share of the width}) as a heat map on a canvas. */
+function paintHeat(canvas, pts, gain = 0.55) {
   const box = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.max(1, Math.round(box.width * dpr));
   canvas.height = Math.max(1, Math.round(box.height * dpr));
   const g = canvas.getContext("2d");
   g.clearRect(0, 0, canvas.width, canvas.height);
-  if (S.heat === "off" || !pts.length || $("#shot").hidden) return;
-  const r = canvas.width * 0.09;
+  if (!pts.length) return;
   for (const p of pts) {
+    const r = canvas.width * (p.r || 0.09);
     const x = p.x * canvas.width, y = p.y * canvas.height;
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, `rgba(0,0,0,${0.55 * p.weight})`);
+    grad.addColorStop(0, `rgba(0,0,0,${Math.min(1, gain * p.weight)})`);
     grad.addColorStop(1, "rgba(0,0,0,0)");
     g.fillStyle = grad;
     g.fillRect(x - r, y - r, 2 * r, 2 * r);
@@ -882,6 +892,307 @@ function renderReport() {
   box.append(out);
 }
 
+
+// ---------- the map: every screen of the app once, joined by the paths of all testers ----------
+
+const traceOf = (key) => (S.ws[key] ? S.ws[key].trace : persona(key).trace);
+const runSize = (key) => { for (const st of traceOf(key).steps) if (st.evidence && Array.isArray(st.evidence.size)) return st.evidence.size; return [1080, 2400]; };
+
+/** Nodes: screen groups. Edges: one screen to the next, counted over every tester. */
+function buildMap() {
+  const nodes = new Map(), edges = new Map();
+  const node = (g) => { if (!nodes.has(g)) nodes.set(g, { g, visits: [], testers: new Set(), mapped: false, order: nodes.size }); return nodes.get(g); };
+  node("start");
+  // the map maker first, so the columns follow the app's structure rather than one persona's detour
+  const order = [...S.data.personas].sort((a, b) => Number(!!b.mapper) - Number(!!a.mapper));
+  for (const p of order) {
+    const t = traceOf(p.key);
+    const seq = [];
+    t.steps.forEach((st, i) => {
+      const nn = st.evidence && st.evidence.screen;
+      const info = nn && screenInfo(nn, p.key);
+      if (info) seq.push({ g: info.group, i, nn });
+    });
+    const last = t.evidence && t.evidence.lastScreen && screenInfo(t.evidence.lastScreen, p.key);
+    if (last) seq.push({ g: last.group, i: t.steps.length, nn: t.evidence.lastScreen });
+    let prev = "start";
+    for (const v of seq) {
+      const n = node(v.g);
+      n.visits.push({ key: p.key, i: v.i, nn: v.nn });
+      if (p.mapper) n.mapped = true; else n.testers.add(p.key);
+      if (v.g !== prev) {
+        const id = `${prev}>${v.g}`;
+        if (!edges.has(id)) edges.set(id, { from: prev, to: v.g, count: 0, testers: new Set(), mapped: false, actions: new Map() });
+        const e = edges.get(id);
+        if (p.mapper) e.mapped = true; else { e.count++; e.testers.add(p.key); }
+        const by = v.i > 0 ? describe(t.steps[v.i - 1].action) : "Launch app";
+        e.actions.set(by, (e.actions.get(by) || 0) + 1);
+      }
+      prev = v.g;
+    }
+  }
+  // columns: shortest distance from the launch
+  const depth = new Map([["start", 0]]);
+  const queue = ["start"];
+  while (queue.length) {
+    const g = queue.shift();
+    for (const e of edges.values()) if (e.from === g && !depth.has(e.to)) { depth.set(e.to, depth.get(g) + 1); queue.push(e.to); }
+  }
+  for (const n of nodes.values()) n.depth = depth.has(n.g) ? depth.get(n.g) : 1;
+  return { nodes, edges };
+}
+
+const CARD_W = 150, IMG_W = 134, COL_GAP = 120, ROW_GAP = 56, START_W = 110;
+
+function layoutMap(map) {
+  const cols = new Map();
+  for (const n of map.nodes.values()) { if (!cols.has(n.depth)) cols.set(n.depth, []); cols.get(n.depth).push(n); }
+  const aspect = (() => { const s = runSize(S.data.personas[0].key); return s[1] / s[0]; })();
+  const cardH = Math.round(IMG_W * aspect) + 64;
+  let maxRows = 0;
+  for (const list of cols.values()) { list.sort((a, b) => a.order - b.order); maxRows = Math.max(maxRows, list.length); }
+  const height = maxRows * cardH + (maxRows - 1) * ROW_GAP;
+  for (const [d, list] of cols) {
+    const colH = list.length * cardH + (list.length - 1) * ROW_GAP;
+    list.forEach((n, r) => {
+      n.x = d === 0 ? 0 : START_W + COL_GAP + (d - 1) * (CARD_W + COL_GAP);
+      n.w = d === 0 ? START_W : CARD_W;
+      n.h = d === 0 ? 44 : cardH;
+      n.y = 70 + (height - colH) / 2 + r * (cardH + ROW_GAP) + (d === 0 ? cardH / 2 - 22 : 0);
+    });
+  }
+  const maxDepth = Math.max(...cols.keys());
+  return { width: START_W + COL_GAP + maxDepth * (CARD_W + COL_GAP), height: height + 160, cardH };
+}
+
+/** Findings of every tester whose screenshots belong to this screen. */
+function findingsOn(n) {
+  const out = [];
+  for (const p of S.data.personas) {
+    const nns = new Set(n.visits.filter((v) => v.key === p.key).map((v) => String(v.nn)));
+    for (const iss of (p.findings && p.findings.issues) || []) if ((iss.screens || []).some((x) => nns.has(String(x)))) out.push({ ...iss, key: p.key });
+  }
+  return out;
+}
+function screenComments(n) {
+  const out = [];
+  const seen = new Set();
+  for (const v of n.visits) {
+    const id = `${v.key}#${v.nn}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const list = (ws(v.key).notes.screens[v.nn] || []);
+    list.forEach((c, j) => out.push({ c, j, key: v.key, nn: v.nn }));
+  }
+  return out;
+}
+
+/** Where taps are likely, when testers did not tap enough: the tappable elements, weighted by
+ * their size and by how often testers tapped the same name or id elsewhere in the app. A model
+ * can replace it: NN.saliency.json next to the screenshot. */
+function estimatedPoints(key, nn) {
+  const info = screenInfo(nn, key);
+  if (!info) return [];
+  if (Array.isArray(info.saliency)) return info.saliency.map(([x, y, w]) => ({ x, y, weight: w, r: 0.07 }));
+  const [W, H] = runSize(key);
+  const pop = new Map();
+  for (const p of S.data.personas) for (const st of traceOf(p.key).steps) {
+    const tg = st.action && st.action.target;
+    if (!tg) continue;
+    if (typeof tg.text === "string") pop.set(`t:${tg.text}`, (pop.get(`t:${tg.text}`) || 0) + 1);
+    if (typeof tg.id === "string") pop.set(`i:${tg.id}`, (pop.get(`i:${tg.id}`) || 0) + 1);
+  }
+  const maxPop = Math.max(1, ...pop.values());
+  return info.elements.filter((e) => e.clickable).map((e) => {
+    const [x1, y1, x2, y2] = e.bounds;
+    const area = ((x2 - x1) * (y2 - y1)) / (W * H);
+    const used = ((pop.get(`t:${e.label}`) || 0) + (pop.get(`i:${e.id}`) || 0)) / maxPop;
+    return { x: (x1 + x2) / 2 / W, y: (y1 + y2) / 2 / H, weight: 0.25 + 0.35 * Math.min(1, Math.sqrt(area) * 2.5) + 0.6 * used,
+      r: Math.max(0.05, Math.min(0.2, Math.min(x2 - x1, y2 - y1) / W * 0.8)) };
+  });
+}
+
+const personaKeys = () => S.data.personas.filter((p) => !p.mapper).map((p) => p.key);
+
+function mapPoints(n, key, nn, mode = S.mapHeat) {
+  const pts = [];
+  if (mode === "taps" || mode === "both") pts.push(...heatPoints(n.g, personaKeys()));
+  if (mode === "estimated" || (mode === "both" && pts.filter((p) => p.weight === 1).length < 3)) pts.push(...estimatedPoints(key, nn).map((p) => ({ ...p, weight: p.weight * (mode === "both" ? 0.6 : 1) })));
+  return pts;
+}
+
+function renderMap() {
+  const map = buildMap();
+  const box = layoutMap(map);
+  const world = $("#map-world");
+  world.style.width = `${box.width}px`;
+  world.style.height = `${box.height}px`;
+  if (!S.mapSel || !map.nodes.has(S.mapSel)) S.mapSel = [...map.nodes.values()].find((n) => n.g !== "start")?.g || null;
+
+  // edges
+  const svg = svgEl("svg", { width: box.width, height: box.height, class: "map-edges" });
+  const defs = svgEl("defs");
+  for (const [id, color] of [["map-arrow", "#6b7686"], ["map-arrow-on", "#7aa7ff"]]) {
+    const marker = svgEl("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 12, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto" });
+    marker.append(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: color }));
+    defs.append(marker);
+  }
+  svg.append(defs);
+  const maxCount = Math.max(1, ...[...map.edges.values()].map((e) => e.testers.size));
+  const labels = [];
+  for (const e of map.edges.values()) {
+    const a = map.nodes.get(e.from), b = map.nodes.get(e.to);
+    const on = S.mapSel && (e.from === S.mapSel || e.to === S.mapSel);
+    let d, lx, ly;
+    if (b.x > a.x) {
+      const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x - 4, y2 = b.y + b.h / 2, mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; lx = mx; ly = (y1 + y2) / 2;
+    } else if (b.x === a.x) {   // same column: around the right side
+      const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x + b.w + 4, y2 = b.y + b.h / 2, out = a.x + a.w + 60;
+      d = `M${x1},${y1} C${out},${y1} ${out},${y2} ${x2},${y2}`; lx = out - 14; ly = (y1 + y2) / 2;
+    } else {   // back to an earlier screen: an arc over the cards, or under them for a low card
+      const above = (a.y + a.h / 2 + b.y + b.h / 2) / 2 <= box.height / 2;
+      const x1 = a.x + a.w / 2, x2 = b.x + b.w / 2 + 12;
+      const y1 = above ? a.y : a.y + a.h, y2 = above ? b.y - 4 : b.y + b.h + 4;
+      const dip = above ? Math.min(y1, y2) - 40 - Math.abs(x1 - x2) * 0.1 : Math.max(y1, y2) + 40 + Math.abs(x1 - x2) * 0.1;
+      d = `M${x1},${y1} C${x1},${dip} ${x2},${dip} ${x2},${y2}`; lx = (x1 + x2) / 2; ly = (y1 + y2) / 8 + 0.75 * dip;
+    }
+    const title = (e.testers.size ? `${e.testers.size} tester${e.testers.size > 1 ? "s" : ""}, ${e.count} time${e.count > 1 ? "s" : ""}` : "Only the map maker went this way") + "\n" + [...e.actions].map(([k, v]) => `${k} (${v})`).join("\n");
+    const path = svgEl("path", { d, fill: "none", stroke: on ? "#7aa7ff" : "#4a5361", "stroke-width": e.testers.size ? 1.5 + 4 * (e.testers.size / maxCount) : 1.5,
+      ...(e.testers.size ? {} : { "stroke-dasharray": "6 6" }), "marker-end": on ? "url(#map-arrow-on)" : "url(#map-arrow)", opacity: S.mapSel && !on ? 0.45 : 1 });
+    const t = svgEl("title"); t.textContent = title; path.append(t);
+    svg.append(path);
+    if (e.testers.size) labels.push(h("div", { class: `edge-label${on ? " on" : ""}`, style: `left:${lx}px;top:${ly}px`, title }, String(e.testers.size)));
+  }
+
+  // nodes
+  const cards = [...map.nodes.values()].map((n) => {
+    if (n.g === "start") return h("div", { class: "map-start", style: `left:${n.x}px;top:${n.y}px;width:${n.w}px` }, "Launch");
+    const rep = n.visits[0];
+    const info = screenInfo(rep.nn, rep.key);
+    const taps = heatPoints(n.g, personaKeys()).filter((p) => p.weight === 1).length;
+    const fnd = findingsOn(n), com = screenComments(n).filter((x) => !x.c.resolved);
+    const canvas = h("canvas", {});
+    const card = h("button", { class: `map-node${S.mapSel === n.g ? " sel" : ""}${n.testers.size ? "" : " unreached"}`, style: `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`,
+      onclick: (ev) => { if (S.mapDragged) return; S.mapSel = n.g; S.mapShot = null; renderMap(); ev.stopPropagation(); } },
+      h("div", { class: "thumb", style: `height:${n.h - 64}px` }, h("img", { src: screenUrl(rep.key, rep.nn), alt: "" }), canvas),
+      h("span", { class: "t" }, screenTitle(info, rep.nn)),
+      h("span", { class: "m" }, n.testers.size ? `${n.testers.size} tester${n.testers.size > 1 ? "s" : ""} · ${taps} taps` : h("span", { class: "chip warn" }, "No persona came here"),
+        fnd.length ? h("span", { class: "chip bad", title: fnd.map((f) => f.title).join("\n") }, `${fnd.length} finding${fnd.length > 1 ? "s" : ""}`) : null,
+        com.length ? h("span", { class: "chip", title: com.map((x) => x.c.text).join("\n") }, `✎ ${com.length}`) : null));
+    requestAnimationFrame(() => paintHeat(canvas, mapPoints(n, rep.key, rep.nn), 0.6));
+    return card;
+  });
+  world.replaceChildren(svg, ...labels, ...cards);
+  const screens = [...map.nodes.values()].filter((n) => n.g !== "start");
+  const unreached = screens.filter((n) => !n.testers.size).length;
+  const hasMapper = S.data.personas.some((p) => p.mapper);
+  $("#map-summary").textContent = `${screens.length} screens${hasMapper ? ", mapped by the map maker" : ", as far as the testers went"}` +
+    (hasMapper ? ` · ${unreached} reached by no persona` : " · run briefs/map.md to find every screen");
+  applyPan(box);
+  renderMapSide(map);
+}
+
+function applyPan(box) {
+  const view = $("#map-canvas");
+  if (!S.mapPan) {
+    const vw = view.clientWidth, vh = view.clientHeight;
+    const k = Math.min(1, (vw - 40) / box.width, (vh - 40) / box.height);
+    S.mapPan = { k: Math.max(0.3, k), x: Math.max(20, (vw - box.width * Math.max(0.3, k)) / 2), y: Math.max(20, (vh - box.height * Math.max(0.3, k)) / 2) };
+  }
+  $("#map-world").style.transform = `translate(${S.mapPan.x}px, ${S.mapPan.y}px) scale(${S.mapPan.k})`;
+}
+
+function wireMap() {
+  const view = $("#map-canvas");
+  let drag = null;
+  view.addEventListener("pointerdown", (e) => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, px: S.mapPan.x, py: S.mapPan.y, moved: false }; S.mapDragged = false; });
+  window.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; S.mapDragged = true; view.classList.add("panning"); }
+    if (drag.moved) { S.mapPan.x = drag.px + dx; S.mapPan.y = drag.py + dy; $("#map-world").style.transform = `translate(${S.mapPan.x}px, ${S.mapPan.y}px) scale(${S.mapPan.k})`; }
+  });
+  window.addEventListener("pointerup", () => { drag = null; view.classList.remove("panning"); setTimeout(() => { S.mapDragged = false; }, 0); });
+  view.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = view.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const k = Math.min(2, Math.max(0.25, S.mapPan.k * Math.exp(-e.deltaY * 0.0015)));
+    S.mapPan.x = mx - (mx - S.mapPan.x) * (k / S.mapPan.k);
+    S.mapPan.y = my - (my - S.mapPan.y) * (k / S.mapPan.k);
+    S.mapPan.k = k;
+    $("#map-world").style.transform = `translate(${S.mapPan.x}px, ${S.mapPan.y}px) scale(${k})`;
+  }, { passive: false });
+  $("#map-fit").onclick = () => { S.mapPan = null; renderMap(); };
+}
+
+function openPath(key, i) {
+  S.view = "paths";
+  S.key = key;
+  ws(key);
+  S.sel[key] = i;
+  render();
+}
+
+function renderMapSide(map) {
+  const side = $("#map-side");
+  const n = map.nodes.get(S.mapSel);
+  if (!n) { side.replaceChildren(h("p", { class: "hint" }, "Click a screen.")); return; }
+  const shot = (S.mapShot && n.visits.find((v) => v.key === S.mapShot.key && v.nn === S.mapShot.nn)) || n.visits[0];
+  const info = screenInfo(shot.nn, shot.key);
+  const [W, H] = runSize(shot.key);
+  const canvas = h("canvas", {});
+  const phone = h("div", { class: "phone map-phone", style: `aspect-ratio:${W} / ${H}` }, h("img", { src: screenUrl(shot.key, shot.nn), alt: "" }), canvas);
+  requestAnimationFrame(() => paintHeat(canvas, mapPoints(n, shot.key, shot.nn), 0.6));
+
+  const mapper = S.data.personas.find((p) => p.mapper && n.visits.some((v) => v.key === p.key));
+  const testers = [...n.testers].map((key) => {
+    const visits = n.visits.filter((v) => v.key === key);
+    return h("li", {}, h("span", { class: "grow" }, traceOf(key).persona.id, h("span", { class: "when" }, `${visits.length} visit${visits.length > 1 ? "s" : ""} · ${[traceOf(key).persona.context?.device, traceOf(key).persona.locale].filter(Boolean).join(" · ")}`)),
+      h("button", { onclick: () => openPath(key, Math.min(visits[0].i, traceOf(key).steps.length - (traceOf(key).evidence?.lastScreen ? 0 : 1))) }, "Open path"));
+  });
+  const flows = (dir) => [...map.edges.values()].filter((e) => (dir === "in" ? e.to : e.from) === n.g).sort((a, b) => b.testers.size - a.testers.size).map((e) => {
+    const other = map.nodes.get(dir === "in" ? e.from : e.to);
+    const name = other.g === "start" ? "Launch" : screenTitle(screenInfo(other.visits[0].nn, other.visits[0].key), other.visits[0].nn);
+    return h("li", {}, h("span", { class: "grow" }, h("button", { class: "link", onclick: () => { if (other.g !== "start") { S.mapSel = other.g; S.mapShot = null; renderMap(); } } }, name),
+      h("span", { class: "when" }, [...e.actions.keys()].slice(0, 3).join(" · "))), h("span", { class: "badge" }, `${e.testers.size}`));
+  });
+  const fnd = findingsOn(n);
+  const comments = screenComments(n);
+  const input = h("textarea", { rows: 2, placeholder: "What should change on this screen? (Ctrl+Enter)" });
+  const add = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    S.key = shot.key;
+    edit((w) => { (w.notes.screens[shot.nn] = w.notes.screens[shot.nn] || []).push({ id: `c${Date.now().toString(36)}`, text, at: new Date().toISOString(), resolved: false }); });
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } });
+  const mutate = (x, fn) => { S.key = x.key; edit((w) => { const l = w.notes.screens[x.nn]; fn(l); if (!l.length) delete w.notes.screens[x.nn]; }); };
+
+  side.replaceChildren(
+    h("div", { class: "step-head" }, h("span", { class: "kind k-tap" }, "Screen"), h("strong", {}, screenTitle(info, shot.nn))),
+    h("p", { class: "hint" }, `${n.visits.length} screenshot${n.visits.length > 1 ? "s" : ""} ${n.testers.size ? `by ${n.testers.size} tester${n.testers.size === 1 ? "" : "s"}${n.mapped ? " and the map maker" : ""}` : "by the map maker only"}. ` +
+      (S.mapHeat === "taps" ? "Heat map: real taps of every tester." : S.mapHeat === "estimated" ? (info && info.saliency ? "Heat map: predicted by a saliency model." : "Heat map: estimated from the tappable elements and what testers tapped elsewhere.") : "Heat map: real taps, completed by the estimate where testers tapped little.")),
+    phone,
+    n.visits.length > 1 ? h("div", { class: "shots" }, ...n.visits.map((v) => h("button", { class: `shot${v === shot ? " on" : ""}`, title: `${traceOf(v.key).persona.id}, screenshot ${v.nn}`, onclick: () => { S.mapShot = { key: v.key, nn: v.nn }; renderMap(); } },
+      h("img", { src: screenUrl(v.key, v.nn), alt: "" })))) : null,
+    h("div", { class: "box" }, h("h3", {}, "Comments on this screen", h("span", { class: "hint", style: "margin:0" }, "trace.notes.json")),
+      h("ul", { class: "list" }, ...comments.map((x) => h("li", { class: x.c.resolved ? "resolved" : "" },
+        h("span", { class: "grow" }, x.c.text, h("span", { class: "when" }, `${traceOf(x.key).persona.id}, screenshot ${x.nn} · ${new Date(x.c.at).toLocaleString()}`)),
+        h("button", { onclick: () => mutate(x, (l) => { l[x.j].resolved = !l[x.j].resolved; }) }, x.c.resolved ? "Reopen" : "Resolve"),
+        h("button", { class: "danger", onclick: () => mutate(x, (l) => l.splice(x.j, 1)) }, "Delete")))),
+      input, h("div", { class: "row", style: "margin-top:6px" }, h("span"), h("button", { class: "fit", onclick: add }, "Comment"))),
+    fnd.length ? h("div", { class: "box" }, h("h3", {}, "Findings seen here"), h("ul", { class: "list" }, ...fnd.map((f) => h("li", {},
+      h("span", { class: "grow" }, h("span", { class: `dot sev-${f.severity}` }), f.title, h("span", { class: "when" }, `${traceOf(f.key).persona.id} · ${f.severity}`)))))) : null,
+    h("div", { class: "box" }, h("h3", {}, "Testers who came here"), testers.length ? h("ul", { class: "list" }, ...testers)
+      : h("p", { class: "hint", style: "margin:0" }, "No persona reached this screen. Only the map maker did: is it hard to find, or not needed?"),
+      mapper ? h("div", { class: "row", style: "margin-top:8px" }, h("span", { class: "hint", style: "margin:0" }, "The map maker's path replays to this screen."),
+        h("button", { class: "fit", onclick: () => openPath(mapper.key, n.visits.find((v) => v.key === mapper.key).i) }, "Open")) : null),
+    h("div", { class: "box" }, h("h3", {}, "Comes from"), h("ul", { class: "list" }, ...flows("in"))),
+    h("div", { class: "box" }, h("h3", {}, "Leads to"), (() => { const l = flows("out"); return l.length ? h("ul", { class: "list" }, ...l) : h("p", { class: "hint", style: "margin:0" }, "Nobody went further from here."); })()));
+}
+
 // ---------- saving ----------
 
 async function post(url, body) {
@@ -927,7 +1238,7 @@ function saveStatic() {
   const check = checkTrace(w.trace);
   if (check.count) return flash(`Fix ${check.count} problem${check.count > 1 ? "s" : ""} before saving`, true);
   download("trace.json", JSON.stringify(w.trace, null, 2) + "\n");
-  if (Object.keys(w.notes.steps).length || w.notes.trace.length) download("trace.notes.json", JSON.stringify(w.notes, null, 2) + "\n");
+  if (Object.keys(w.notes.steps).length || w.notes.trace.length || Object.keys(w.notes.screens).length) download("trace.notes.json", JSON.stringify(w.notes, null, 2) + "\n");
   w.saved = snapshot(w);
   $("#status").dataset.saved = "Downloaded: this demo saves nothing online";
   flash($("#status").dataset.saved);
@@ -967,6 +1278,9 @@ function selectPersona(key) {
 }
 
 function wire() {
+  for (const b of document.querySelectorAll("[data-view]")) b.onclick = () => { S.view = b.dataset.view; if (S.picking) stopPicking(); render(); };
+  for (const b of document.querySelectorAll("[data-mapheat]")) b.onclick = () => { S.mapHeat = b.dataset.mapheat; render(); };
+  wireMap();
   $("#first").onclick = () => select(0);
   $("#prev").onclick = () => select(cur() - 1);
   $("#next").onclick = () => select(cur() + 1);
@@ -1030,6 +1344,7 @@ function wire() {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
     if (typing) { if (e.key === "Escape") e.target.blur(); return; }
+    if (S.view === "map") { if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); undoRedo(e.shiftKey ? "redo" : "undo", e.shiftKey ? "undo" : "redo"); } return; }
     if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); undoRedo(e.shiftKey ? "redo" : "undo", e.shiftKey ? "undo" : "redo"); return; }
     if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); undoRedo("redo", "undo"); return; }
     if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateStep(cur()); return; }
