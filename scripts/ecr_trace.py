@@ -1,7 +1,8 @@
 """Turns what an agent did on the phone into a trace that can be replayed with no model.
 
 Usage: python3 scripts/ecr_trace.py <results dir of one persona> --persona ID --app-id ID
-           [--personas personas.json] [--log actions.tsv] [--now 2026-01-01T00:00:00Z]
+           [--personas personas.json] [--log actions.tsv] [--agent-output agent-output.json]
+           [--now 2026-01-01T00:00:00Z]
 
 Reads the notes taken during the run (scripts/android/shim/adb, screen.py, type.py)
 and the screen trees screen.py saved, and writes in the results dir:
@@ -45,17 +46,33 @@ def read_screen(path):
     return nodes
 
 
-def target_at(nodes, x, y, width, height):
+def shows(label, typed):
+    """True when a name on the screen holds a text the agent typed (its e-mail in a greeting)."""
+    return any(len(text) >= 3 and text in label for text in typed)
+
+
+def target_at(nodes, x, y, width, height, typed=None):
     """How a replay should find what was tapped: by name, else by id, else by position.
-    Returns the target and the bounds of the element it names (None for a position)."""
+    Returns the target and the bounds of the element it names (None for a position).
+    typed: {text the agent typed: its name}. A name on the screen that is exactly a typed text
+    (a task it just added) is stored as that name; one that holds a typed text is not used.
+    So typed texts stay out of the trace."""
+    typed = typed or {}
     hits = [n for n in nodes if n[2] <= x <= n[4] and n[3] <= y <= n[5] and (n[0] or n[1])]
     hits.sort(key=lambda n: (n[4] - n[2]) * (n[5] - n[3]))   # the smallest element under the finger
     for key in (0, 1):   # a name first: it survives a refactoring better than an id
         for hit in hits:
-            if not hit[key] or "${" in hit[key] or len(hit[key]) > 80 or "\n" in hit[key]:
+            name = hit[key]
+            if not name or "${" in name or len(name) > 80 or "\n" in name:
                 continue
-            same = [n for n in nodes if n[key] == hit[key]]
-            target = {"text" if key == 0 else "id": hit[key]}
+            if key == 0 and name in typed:
+                value = {"param": typed[name]}
+            elif shows(name, typed):
+                continue
+            else:
+                value = name
+            same = [n for n in nodes if n[key] == name]
+            target = {"text" if key == 0 else "id": value}
             if len(same) > 1:
                 target["index"] = same.index(hit)
             return target, list(hit[2:6])
@@ -70,7 +87,23 @@ def input_args(fields):
     return words[1:] if words[:1] == ["input"] else []
 
 
-def build(log_lines, persona, app_id, now):
+def model_of(path):
+    """The model that did most of the run, read from what `claude -p --output-format json` printed. None when unknown."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(data, list):   # some versions print every message: the result comes last
+        data = next((m for m in reversed(data) if isinstance(m, dict) and m.get("type") == "result"), None)
+    usage = data.get("modelUsage") if isinstance(data, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    written = {name: (use.get("outputTokens") or 0) if isinstance(use, dict) else 0 for name, use in usage.items()}
+    names = [name for name in written if isinstance(name, str) and name and isinstance(written[name], (int, float))]
+    return max(names, key=lambda name: written[name]) if names else None
+
+
+def build(log_lines, persona, app_id, now, model=None):
     steps, params, values, skipped = [], [], {}, []
     nodes, width, height, screen, last_screen = [], 0, 0, None, None
 
@@ -110,7 +143,7 @@ def build(log_lines, persona, app_id, now):
             args = input_args(fields[2:])
             if args[:1] == ["tap"] and len(args) >= 3 and args[1].lstrip("-").isdigit() and args[2].lstrip("-").isdigit():
                 x, y = int(args[1]), int(args[2])
-                target, bounds = target_at(nodes, x, y, width, height)
+                target, bounds = target_at(nodes, x, y, width, height, values)
                 if target:
                     add({"kind": "tapOn", "target": target}, point=[x, y], bounds=bounds)
                 else:
@@ -145,7 +178,7 @@ def build(log_lines, persona, app_id, now):
         "invariants": [],
         "steps": steps,
         **({"evidence": {"lastScreen": last_screen}} if last_screen else {}),
-        "provenance": {"exploredAt": now, "agent": "mobile-agent-testers"},
+        "provenance": {"exploredAt": now, "agent": "mobile-agent-testers", **({"model": model} if model else {})},
     }
     return trace, {name: text for text, name in values.items()}, skipped
 
@@ -157,6 +190,7 @@ def main(argv=None):
     parser.add_argument("--app-id", required=True)
     parser.add_argument("--personas", default="personas.json")
     parser.add_argument("--log")
+    parser.add_argument("--agent-output")
     parser.add_argument("--now")
     args = parser.parse_args(argv)
 
@@ -172,7 +206,8 @@ def main(argv=None):
     except (OSError, ValueError):
         pass
     now = args.now or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    trace, values, skipped = build(log.read_text(encoding="utf-8").splitlines(), persona, args.app_id, now)
+    model = model_of(args.agent_output) if args.agent_output else None
+    trace, values, skipped = build(log.read_text(encoding="utf-8").splitlines(), persona, args.app_id, now, model)
     if len(trace["steps"]) < 2:
         print("trace: the agent did nothing that can be replayed, nothing written")
         return 0

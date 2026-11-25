@@ -63,6 +63,10 @@ on:
         description: Record each phone's screen (encrypted with the results)
         type: boolean
         default: false
+      replay_path:
+        description: "Experimental, Android: after each agent, replay its path on the same phone with no model (docs/replay.md)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -231,6 +235,27 @@ jobs:
           GH_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
         run: bash scripts/bug_report.sh
 
+      # Optional: Explore-Compile-Replay compiles the path of the agent to a Maestro flow,
+      # replayed once the agent is done (scripts/ecr_replay.py). Both are pinned.
+      - name: Explore-Compile-Replay (replay_path)
+        if: inputs.replay_path
+        uses: actions/checkout@v4
+        with:
+          repository: pierridotite/explore-compile-replay
+          ref: 9737ba62be14d481e64985c05c40e8e2dac09f17
+          path: .ecr
+          persist-credentials: false
+      - if: inputs.replay_path
+        uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Maestro (replay_path)
+        if: inputs.replay_path
+        env: { MAESTRO_VERSION: 2.12.1 }
+        run: |
+          npm install -g --silent pnpm@10 && (cd .ecr && pnpm install --frozen-lockfile --silent)
+          curl -fsSL "https://get.maestro.mobile.dev" | bash >/dev/null
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
       - name: Emulator + agent
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -250,6 +275,7 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           BLOCK_HOSTS: ${{ inputs.block_hosts }}
           RECORD_VIDEO: ${{ inputs.record_video }}
+          REPLAY_PATH: ${{ inputs.replay_path }}
         with:
           api-level: ${{ matrix.api }}
           target: google_apis

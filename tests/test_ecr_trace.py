@@ -73,6 +73,18 @@ class Build(unittest.TestCase):
         self.assertEqual([s["action"] for s in trace["steps"][1:3]],
                          [{"kind": "eraseText"}, {"kind": "inputText", "text": {"param": "TEXT_1"}}])
 
+    def test_a_tap_on_a_typed_text_shown_on_the_screen_keeps_it_out_of_the_trace(self):
+        (self.dir / "02.xml").write_text(LOGIN.replace('text="Sign in" resource-id="app:id/submit"', 'text="Buy milk today" resource-id="app:id/submit"')
+                                         .replace('content-desc="Help"', 'content-desc="Buy milk"'), encoding="utf-8")
+        trace, values, _ = tracer.build([self.screen, "0\ttype\tBuy milk", f"0\tscreen\t{self.dir / '02.xml'}\t1080\t2400",
+                                         "0\tadb\tshell\tinput\ttap\t500\t660", "0\tadb\tshell\tinput\ttap\t990\t90"],
+                                        PERSONA, "com.example.todo", NOW)
+        self.assertEqual(values, {"TEXT_1": "Buy milk"})
+        self.assertEqual([s["action"]["target"] for s in trace["steps"][3:]],
+                         [{"id": "app:id/submit"},                 # the name holds the typed text: the id is used
+                          {"text": {"param": "TEXT_1"}}])          # the name is the typed text: stored under its name
+        self.assertNotIn("Buy milk", json.dumps(trace))
+
     def test_swipes_and_keys(self):
         actions, _, skipped = self.actions(
             "1\tadb\tshell\tinput\tswipe\t500\t1800\t500\t600\t400", "1\tadb\tshell\tinput\tswipe\t900\t1000\t100\t1010\t400",
@@ -111,6 +123,22 @@ class Build(unittest.TestCase):
         trace, _, _ = tracer.build([f"0\tscreen\t{self.dir / 'bad.xml'}\t1080\t2400", "garbage", "1\tadb\tshell\tinput\ttap\t540\t1200"],
                                    PERSONA, "com.example.todo", NOW)
         self.assertEqual(trace["steps"][1]["action"], {"kind": "tapOn", "target": {"point": "50%,50%"}})
+
+    def test_the_trace_names_the_model_that_explored_when_the_run_says_it(self):
+        output = self.dir / "agent-output.json"
+        result = {"type": "result", "subtype": "success",
+                  "modelUsage": {"small-model": {"outputTokens": 120}, "main-model": {"outputTokens": 9000}}}
+        for printed in (result, [{"type": "system"}, result]):
+            output.write_text(json.dumps(printed), encoding="utf-8")
+            self.assertEqual(tracer.model_of(output), "main-model")
+        for printed in ("", "not json", "{}", '{"modelUsage": {}}', '{"modelUsage": []}'):
+            output.write_text(printed, encoding="utf-8")
+            self.assertIsNone(tracer.model_of(output))
+        self.assertIsNone(tracer.model_of(self.dir / "missing.json"))
+        named, _, _ = tracer.build([self.screen], PERSONA, "com.example.todo", NOW, "main-model")
+        self.assertEqual(named["provenance"], {"exploredAt": NOW, "agent": "mobile-agent-testers", "model": "main-model"})
+        unnamed, _, _ = tracer.build([self.screen], PERSONA, "com.example.todo", NOW)
+        self.assertNotIn("model", unnamed["provenance"])
 
 
 class EndToEnd(unittest.TestCase):

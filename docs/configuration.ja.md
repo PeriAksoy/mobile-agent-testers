@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | 自動ビルドに追加する引数（両プラットフォーム共通）。Flutter なら `--dart-define=API_URL=https://staging.example.com`、それ以外は Gradle と xcodebuild の引数。公開リポジトリでは実行時の入力も公開されるので、キーは `BUILD_ARGS` シークレットに入れてください |
 | `block_hosts` | テスト中にブロックする分析系のホスト |
 | `record_video` | 各端末の画面録画（レポートと一緒に暗号化） |
+| `replay_path` | 実験的、Android のみ：各エージェントの終了後、その操作の流れを同じ端末でモデルなしで再生（[docs/replay.md](replay.md)） |
 
 **そのまま使えるもの**（自動検出）：
 

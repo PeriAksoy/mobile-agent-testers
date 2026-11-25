@@ -20,6 +20,7 @@ gh workflow run agent-testers.yml -f source_repo=you/app -f app_id=com.you.app \
 | `build_args` | Extra arguments for the automatic build of both platforms, like `--dart-define=API_URL=https://staging.example.com` for Flutter (Gradle and xcodebuild arguments for the others). Keys go in a `BUILD_ARGS` secret: run inputs are public on a public repo |
 | `block_hosts` | Analytics hosts blocked during tests |
 | `record_video` | Screen recording of each phone, encrypted with the reports |
+| `replay_path` | Experimental, Android: after each agent, its path is replayed on the same phone with no model ([docs/replay.md](replay.md)) |
 
 **Supported out of the box** (detected automatically):
 
