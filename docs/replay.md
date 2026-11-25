@@ -44,3 +44,4 @@ When a replay stops, the app may have shown something else the second time (an a
 - **Android only.** iOS comes next.
 - An element with no name and no id is stored as a point on the screen, in percent. It breaks on another screen size.
 - When several elements share a name, the trace keeps the position of the one that was tapped among them.
+- A tap on an element that shows a text the agent typed (a task it just added) is stored by its id, or as a point: typed texts stay out of the trace.

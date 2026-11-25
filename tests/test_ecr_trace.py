@@ -73,6 +73,16 @@ class Build(unittest.TestCase):
         self.assertEqual([s["action"] for s in trace["steps"][1:3]],
                          [{"kind": "eraseText"}, {"kind": "inputText", "text": {"param": "TEXT_1"}}])
 
+    def test_a_tap_on_a_typed_text_shown_on_the_screen_keeps_it_out_of_the_trace(self):
+        (self.dir / "02.xml").write_text(LOGIN.replace('text="Sign in" resource-id="app:id/submit"', 'text="Buy milk today" resource-id="app:id/submit"')
+                                         .replace('content-desc="Help"', 'content-desc="Buy milk"'), encoding="utf-8")
+        trace, values, _ = tracer.build([self.screen, "0\ttype\tBuy milk", f"0\tscreen\t{self.dir / '02.xml'}\t1080\t2400",
+                                         "0\tadb\tshell\tinput\ttap\t500\t660", "0\tadb\tshell\tinput\ttap\t990\t90"],
+                                        PERSONA, "com.example.todo", NOW)
+        self.assertEqual(values, {"TEXT_1": "Buy milk"})
+        self.assertEqual([s["action"]["target"] for s in trace["steps"][3:]], [{"id": "app:id/submit"}, {"point": "92%,4%"}])
+        self.assertNotIn("Buy milk", json.dumps(trace))
+
     def test_swipes_and_keys(self):
         actions, _, skipped = self.actions(
             "1\tadb\tshell\tinput\tswipe\t500\t1800\t500\t600\t400", "1\tadb\tshell\tinput\tswipe\t900\t1000\t100\t1010\t400",

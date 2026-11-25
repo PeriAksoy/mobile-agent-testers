@@ -46,14 +46,20 @@ def read_screen(path):
     return nodes
 
 
-def target_at(nodes, x, y, width, height):
+def shows(label, typed):
+    """True when a name on the screen holds a text the agent typed (a task it just added, its e-mail)."""
+    return any(text == label or (len(text) >= 3 and text in label) for text in typed)
+
+
+def target_at(nodes, x, y, width, height, typed=()):
     """How a replay should find what was tapped: by name, else by id, else by position.
-    Returns the target and the bounds of the element it names (None for a position)."""
+    Returns the target and the bounds of the element it names (None for a position).
+    A name that holds a typed text is not used: typed texts stay out of the trace."""
     hits = [n for n in nodes if n[2] <= x <= n[4] and n[3] <= y <= n[5] and (n[0] or n[1])]
     hits.sort(key=lambda n: (n[4] - n[2]) * (n[5] - n[3]))   # the smallest element under the finger
     for key in (0, 1):   # a name first: it survives a refactoring better than an id
         for hit in hits:
-            if not hit[key] or "${" in hit[key] or len(hit[key]) > 80 or "\n" in hit[key]:
+            if not hit[key] or "${" in hit[key] or len(hit[key]) > 80 or "\n" in hit[key] or shows(hit[key], typed):
                 continue
             same = [n for n in nodes if n[key] == hit[key]]
             target = {"text" if key == 0 else "id": hit[key]}
@@ -127,7 +133,7 @@ def build(log_lines, persona, app_id, now, model=None):
             args = input_args(fields[2:])
             if args[:1] == ["tap"] and len(args) >= 3 and args[1].lstrip("-").isdigit() and args[2].lstrip("-").isdigit():
                 x, y = int(args[1]), int(args[2])
-                target, bounds = target_at(nodes, x, y, width, height)
+                target, bounds = target_at(nodes, x, y, width, height, values)
                 if target:
                     add({"kind": "tapOn", "target": target}, point=[x, y], bounds=bounds)
                 else:
